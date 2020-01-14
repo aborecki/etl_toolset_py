@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import logging
 
+import pyetltools
 import pyetltools.config.config as cm
 
 _context_factory_map = {}
@@ -22,9 +23,21 @@ class Context:
         pass
 
 
+def set_attributes_from_config():
+    for conf_key in cm.get_keys():
+        try:
+            c = get(conf_key)
+            attr_name = str(conf_key.replace("/", "_"));
+            #print("Setting" +attr_name)
+            setattr(pyetltools.context, attr_name, c)
+        except Exception as e:
+            print("Unable to get "+conf_key);
+            print(e);
+            #if setting of the attribute is not possible, silently ignore (should we?)
+            pass;
+
 def get_config(config_key):
     return cm.get_config(config_key)
-
 
 def get(config_key):
     config = cm.get_config(config_key)

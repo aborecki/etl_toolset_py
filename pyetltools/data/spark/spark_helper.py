@@ -1,0 +1,134 @@
+from functools import reduce
+from pyspark.sql.types import BooleanType
+from pyspark.sql import functions as F
+
+
+def df_to_excel(df, filename):
+    df2 = df.select([F.col(c).cast("string") for c in df.columns])
+    df2.toPandas().to_excel(filename, sheet_name='DATA', index=False)
+
+
+def df_to_csv(df, output_dir):
+    df.coalesce(1).write.option("header", "true").option("sep", ",").mode("overwrite").csv(output_dir)
+
+
+def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], include_columns=[], mode=1):
+    if 1 > mode > 3:
+        print("Allowed modes 1 (counts only), 2 (only counts for content), 3 (full - content)")
+
+    left_df.persist()
+    right_df.persist()
+
+    left_cnt = left_df.count();
+    right_cnt = right_df.count();
+
+    if left_cnt != right_cnt:
+        print("Datasets counts are not equal.")
+        print("Left count: " + str(left_cnt))
+        print("Right count: " + str(right_cnt))
+        print("Difference: " + str(right_cnt - left_cnt))
+    else:
+        print("Datasets counts equal.")
+        print("Left/right count:" + str(left_cnt))
+
+    left_key_dist_cnt = left_df.select([x for x in key_fields]).distinct().count()
+    right_key_dist_cnt = right_df.select([x for x in key_fields]).distinct().count()
+    stop = False;
+    print()
+    if left_key_dist_cnt != left_cnt:
+        print("Key columns (" + str(key_fields) + ") do not distinct in left dataset")
+        stop = True
+    if right_key_dist_cnt != right_cnt:
+        print("Key columns (" + str(key_fields) + ") do not distinct in right dataset")
+        stop = True
+    if stop:
+        return
+
+    if mode == 1:
+        return;
+
+    common_cols = sorted(set(left_df.columns).intersection(right_df.columns), key=lambda x: left_df.columns.index(x))
+    common_cols = [x for x in common_cols if x not in exclude_columns]
+    print("Common columns (without excluded):" + str(common_cols))
+    print("Join cols:" + str(key_fields))
+    join_cond = [left_df[x] == right_df[x] for x in key_fields]
+    if mode == 2:
+        select_cols = key_fields
+    if mode == 3:
+        select_cols = common_cols
+    join_res_df = left_df.select(select_cols).join(right_df.select(select_cols), join_cond, how="full")
+    # F.when(df.age > 4, 1).when(df.age < 3, -1).otherwise(0)
+    join_res_df = join_res_df.withColumn("left_missing",
+                                         F.when(reduce(lambda a, b: a & b, [left_df[x].isNull() for x in key_fields]),
+                                                1).otherwise(0))
+    join_res_df = join_res_df.withColumn("right_missing",
+                                         F.when(reduce(lambda a, b: a & b, [right_df[x].isNull() for x in key_fields]),
+                                                1).otherwise(0))
+    join_res_df = join_res_df.withColumn("both",
+                                         F.when(reduce(lambda a, b: a & b,
+                                                       [left_df[x].isNotNull() & right_df[x].isNotNull() for x in
+                                                        key_fields]),
+                                                1).otherwise(0))
+
+    content_cols = [x for x in select_cols if x not in key_fields]
+    if len(include_columns) > 0:
+        content_cols = include_columns
+    print("Content cols:" + str(content_cols))
+
+    def is_float(value):
+        try:
+            float(value)  # for int, long and float
+        except ValueError:
+            return False
+        except TypeError:
+            return False
+        return True
+
+    is_float_udf = F.udf(is_float, BooleanType())
+
+    for col in content_cols:
+        join_res_df = join_res_df.withColumn("diff_" + col, F.when(
+            F.when(is_float_udf(left_df[col]), left_df[col].cast("float")).otherwise(left_df[col].cast("string"))
+            != F.when(is_float_udf(right_df[col]), right_df[col].cast("float")).otherwise(right_df[col].cast("string")),
+            1).otherwise(0))
+        join_res_df = join_res_df.withColumn("diff_cont_" + col, F.when(
+            F.when(is_float_udf(left_df[col]), left_df[col].cast("float")).otherwise(left_df[col].cast("string"))
+            != F.when(is_float_udf(right_df[col]), right_df[col].cast("float")).otherwise(right_df[col].cast("string")),
+            F.concat(left_df[col], F.lit("|||"), right_df[col])).otherwise(""))
+    if (len(content_cols) > 0):
+        join_res_df = join_res_df.withColumn("diff_cnt", reduce(lambda a, b: a + b,
+                                                                [join_res_df["diff_" + x] for x in content_cols]))
+        join_res_df = join_res_df.withColumn("diff_cont", F.when(reduce(lambda a, b: a + b,
+                                                                        [join_res_df["diff_" + x] for x in
+                                                                         content_cols]) == 0, 0).otherwise(1))
+
+    join_res_df.persist();
+    # join_res_df.show();
+
+    if (len(content_cols) > 0):
+        agg_df = join_res_df.select(["left_missing", "right_missing", "both", "diff_cont"]).agg(
+            F.sum("left_missing").alias("left_missing"),
+            F.sum("right_missing").alias("right_missing"),
+            F.sum("both").alias("both"),
+            F.sum("diff_cont").alias("diffrent_rows_cnt"))
+    else:
+        agg_df = join_res_df.select(["left_missing", "right_missing", "both"]).agg(
+            F.sum("left_missing").alias("left_missing"),
+            F.sum("right_missing").alias("right_missing"),
+            F.sum("both").alias("both"))
+
+    # agg_df.show()
+    left_missing_cnt = agg_df.select("left_missing").first()[0]
+    right_missing_cnt = agg_df.select("right_missing").first()[0]
+    both_cnt = agg_df.select("both").first()[0]
+    if len(content_cols) > 0:
+        diff_cnt = agg_df.select("diffrent_rows_cnt").first()[0]
+
+    print("")
+    print("Count of rows from right dataset missing in left dataset:" + str(left_missing_cnt))
+    print("Count of rows from left dataset missing in right dataset:" + str(right_missing_cnt))
+    print("Count of rows found in both datasets: " + str(both_cnt))
+    if len(content_cols) > 0:
+        print("Count of diffrent rows: " + str(diff_cnt))
+
+    return join_res_df;

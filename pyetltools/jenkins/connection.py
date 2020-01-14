@@ -16,7 +16,9 @@ class JenkinsConnection(Connection):
     def execute_post(self, request_url_suffix, data) :
         logging.debug("DATA:"+str(data))
         request_url_suffix = request_url_suffix.strip("/")
-        res = requests.post(self.config.url.rstrip('/')+"/"+request_url_suffix, data=data,
+        uri=self.config.url.rstrip('/')+"/"+request_url_suffix
+        print(uri)
+        res = requests.post(uri, data=data,
                             auth=(self.config.username, self.get_password()))
         return res
 
@@ -25,5 +27,3 @@ class JenkinsConnection(Connection):
         res = requests.get(self.config.url.rstrip("/")+ "/" +request_url_suffix,
                            auth=(self.config.username, self.get_password()))
         return res
-
-

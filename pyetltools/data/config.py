@@ -7,7 +7,13 @@ class ServerType(enum.Enum):
 
 class DBConfig(Config):
 
-    def __init__(self, key, db_type:ServerType, host=None, port=None, dsn=None, username=None, password=None, data_source=None,
+    def __init__(self, key, db_type:ServerType,
+                 host=None,
+                 port=None,
+                 dsn=None,
+                 username=None,
+                 password=None,
+                 data_source=None,
                  driver=None,
                  integrated_security=False):
         super().__init__(key=key)

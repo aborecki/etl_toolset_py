@@ -1,9 +1,11 @@
 import logging
 from typing import Dict, Any
 import traceback
+import getpass
+
+
+
 from typing import Dict
-
-
 
 
 class Config:
@@ -20,8 +22,9 @@ class ConfigValue:
 _config_entries: Dict[str, Config] = {}
 _passwords: Dict[str, str] = {}
 
+
 def add(config):
-    key = config.key;
+    key = config.key
     if key not in _config_entries:
         _config_entries[key] = config
     return _config_entries.get(key)
@@ -57,7 +60,7 @@ def get_by_group_name(group_name):
 
 def get_password(key):
     if key not in _passwords:
-        _passwords[key] = input(f"Enter password to {key}: ")
+        _passwords[key] =  getpass.getpass(f"Enter password to {key}: ")
     return _passwords[key]
 
 

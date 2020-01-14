@@ -1,7 +1,7 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 
 from pyetltools.core import connection
-from pyetltools.data.core.db_connection import DBConnection
+from pyetltools.data.core.connection import DBConnection
 
 
 
@@ -17,3 +17,11 @@ class NZDBConnection(DBConnection):
 
     def get_select(self, limit, table_name, where):
         return "select * from {table_name} where {where} top {limit}"
+
+    @abstractmethod
+    def supports_jdbc(self):
+        return False;
+
+    @abstractmethod
+    def supports_odbc(self):
+        return True;

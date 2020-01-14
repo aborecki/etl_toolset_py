@@ -8,8 +8,8 @@ def get_authentication_headers(username, password):
     return headers
 
 
-def get_create_subtask_body(project_key, parent_key, subtask_summary, subtask_description):
-    subtask_description=subtask_description.replace("\"","\\\"")
+def get_create_subissue_body(project_key, parent_key, subissue_summary, subissue_description):
+    subissue_description=subissue_description.replace("\"","\\\"")
     return f"""{{
         "fields":
         {{
@@ -21,8 +21,8 @@ def get_create_subtask_body(project_key, parent_key, subtask_summary, subtask_de
             {{
                 "key": "{parent_key}"
             }},
-            "summary": "{subtask_summary}",
-            "description": "{subtask_description}",
+            "summary": "{subissue_summary}",
+            "description": "{subissue_description}",
             "issuetype":
              {{
                 "id": "5"
