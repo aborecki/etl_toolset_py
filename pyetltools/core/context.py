@@ -7,6 +7,9 @@ import pyetltools.config.config as cm
 _context_factory_map = {}
 
 
+class Container:
+    pass;
+
 class Context:
 
     def __init__(self, config):
@@ -27,17 +30,29 @@ def set_attributes_from_config():
     for conf_key in cm.get_keys():
         try:
             c = get(conf_key)
-            attr_name = str(conf_key.replace("/", "_"));
-            #print("Setting" +attr_name)
-            setattr(pyetltools.context, attr_name, c)
+            keys=conf_key.split("/");
+            if len(keys)>1:
+                group_name=keys[0]
+                key=keys[1]
+                # add group name if not exists
+                if not hasattr(pyetltools.context, group_name):
+                    setattr(pyetltools.context, group_name, Container())
+                setattr(getattr(pyetltools.context, group_name), key, c)
+            else:
+                key = keys[0]
+                setattr(pyetltools.context, key, c)
         except Exception as e:
-            print("Unable to get "+conf_key);
+            print("Unable to get " + conf_key);
             print(e);
-            #if setting of the attribute is not possible, silently ignore (should we?)
             pass;
+
+
+
+
 
 def get_config(config_key):
     return cm.get_config(config_key)
+
 
 def get(config_key):
     config = cm.get_config(config_key)

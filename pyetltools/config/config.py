@@ -46,18 +46,6 @@ def filter_dict(dict, by_key=lambda x: True, by_value=lambda x: True):
             yield (k, v)
 
 
-def get_by_group_name(group_name):
-    def is_in_group(key, group_name):
-        key_parts = key.split("/")
-        if len(key_parts) == 1:
-            return False
-        else:
-            if key_parts[0] == group_name:
-                return True
-
-    return dict(filter_dict(_config_entries, lambda key: is_in_group(key, group_name), lambda val: True))
-
-
 def get_password(key):
     if key not in _passwords:
         _passwords[key] =  getpass.getpass(f"Enter password to {key}: ")

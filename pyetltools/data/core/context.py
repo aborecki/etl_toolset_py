@@ -1,3 +1,5 @@
+from copy import copy, deepcopy
+
 import pyodbc
 import pyspark
 import pandas
@@ -25,11 +27,11 @@ class DBContext:
         self.connection = connection
         self.spark_context= context.get("SPARK")
 
-    def set_database(self,db):
-        self.config.data_source=db
+    def set_data_source(self, data_source):
+        self.connection.set_data_source(data_source)
         return self
 
-    def get_spark_dataframe(self, query):
+    def run_query_spark_dataframe(self, query):
         if self.connection.supports_jdbc():
             df =  self.spark_context.get_spark_session().read.format("jdbc") \
                     .option("url", self.connection.get_jdbc_conn_string()) \
@@ -44,10 +46,10 @@ class DBContext:
                 pdf = self.get_pandas_dataframe(query)
                 is_empty = pdf.empty
                 if not is_empty:
-                    return pandas_to_spark(self.spark_context.get_spark_session(), pdf)
+                    return spark_helper.pandas_to_spark(self.spark_context.get_spark_session(), pdf)
 
 
-    def get_pandas_dataframe(self, query):
+    def run_query_pandas_dataframe(self, query):
         conn = pyodbc.connect(self.connection.get_odbc_conn_string())
         return pandas.read_sql(query, conn)
 
@@ -74,10 +76,10 @@ class DBContext:
         return res;
 
     def get_databases(self):
-        return self.get_pandas_dataframe(self.connection.get_sql_list_databases())
+        return self.run_query_pandas_dataframe(self.connection.get_sql_list_databases())
 
     def get_objects(self):
-        return self.get_pandas_dataframe(self.connection.get_sql_list_objects())
+        return self.run_query_pandas_dataframe(self.connection.get_sql_list_objects())
 
     @classmethod
     def create_connection_from_config(cls, config: DBConfig):
@@ -94,49 +96,3 @@ class DBContext:
     @classmethod
     def register_context_factory(cls):
         context.register_context_factory(DBConfig, DBContext)
-
-# Auxiliar functions
-def equivalent_type(f):
-    if f == 'datetime64[ns]':
-        return DateType()
-    elif f == 'int64':
-        return LongType()
-    elif f == 'int32':
-        return IntegerType()
-    elif f == 'float64':
-        return FloatType()
-    else:
-        return StringType()
-
-
-def define_structure(string, format_type):
-    try:
-        typo = equivalent_type(format_type)
-    except:
-        typo = StringType()
-    return StructField(string, typo)
-
-
-# Given pandas dataframe, it will return a spark's dataframe.
-def pandas_to_spark(spark, pandas_df):
-    columns = list(pandas_df.columns)
-
-    struct_list = []
-
-    #infer_type = lambda x: pd.api.types.infer_dtype(x, skipna=True)
-    # pandas_df.apply(infer_type, axis=0)
-
-    df_types = list(pandas.DataFrame(pandas_df.apply(pandas.api.types.infer_dtype, axis=0)).reset_index().rename(
-        columns={'index': 'column', 0: 'type'}));
-    types = list(pandas_df.dtypes)
-    # pandas_df=pandas_df.astype(df_types)
-    for column, typo in zip(columns, types):
-        struct_list.append(define_structure(column, typo))
-    p_schema = StructType(struct_list)
-
-    try:
-        return spark.createDataFrame(pandas_df).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
-    except:
-        return spark.createDataFrame(pandas_df, p_schema).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
-
-

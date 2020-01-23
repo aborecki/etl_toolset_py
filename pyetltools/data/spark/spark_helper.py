@@ -1,5 +1,9 @@
 from functools import reduce
-from pyspark.sql.types import BooleanType
+
+import pandas
+import pyspark
+from pyspark.sql.types import BooleanType, DateType, LongType, IntegerType, FloatType, StringType, StructField, \
+    StructType
 from pyspark.sql import functions as F
 
 
@@ -132,3 +136,51 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
         print("Count of diffrent rows: " + str(diff_cnt))
 
     return join_res_df;
+
+
+
+# Auxiliar functions
+def equivalent_type(f):
+    if f == 'datetime64[ns]':
+        return DateType()
+    elif f == 'int64':
+        return LongType()
+    elif f == 'int32':
+        return IntegerType()
+    elif f == 'float64':
+        return FloatType()
+    else:
+        return StringType()
+
+
+def define_structure(string, format_type):
+    try:
+        typo = equivalent_type(format_type)
+    except:
+        typo = StringType()
+    return StructField(string, typo)
+
+
+# Given pandas dataframe, it will return a spark's dataframe.
+def pandas_to_spark(spark, pandas_df):
+    columns = list(pandas_df.columns)
+
+    struct_list = []
+
+    #infer_type = lambda x: pd.api.types.infer_dtype(x, skipna=True)
+    # pandas_df.apply(infer_type, axis=0)
+
+    df_types = list(pandas.DataFrame(pandas_df.apply(pandas.api.types.infer_dtype, axis=0)).reset_index().rename(
+        columns={'index': 'column', 0: 'type'}));
+    types = list(pandas_df.dtypes)
+    # pandas_df=pandas_df.astype(df_types)
+    for column, typo in zip(columns, types):
+        struct_list.append(define_structure(column, typo))
+    p_schema = StructType(struct_list)
+
+    try:
+        return spark.createDataFrame(pandas_df).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
+    except:
+        return spark.createDataFrame(pandas_df, p_schema).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
+
+

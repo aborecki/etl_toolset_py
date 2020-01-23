@@ -4,6 +4,10 @@ from pyetltools.neo4j.config import NEO4JConfig
 from pyetltools.neo4j.connection import NEO4JConnection
 from pandas import DataFrame
 
+from pyetltools.neo4j.scripts import neo4jupyter
+
+
+
 class NEO4JContext(Context):
 
     def __init__(self, config: NEO4JConfig, connection: NEO4JConnection):
@@ -13,8 +17,14 @@ class NEO4JContext(Context):
     def get_graph(self):
         return self.connection.get_graph()
 
-    def run_query_as_pandas_df(self, query):
-        return DataFrame(self.get_graph().run(query));
+    def draw_graph(self, graph, options={}):
+        return neo4jupyter.draw(graph, options)
+
+    def draw_graph_data(self, data, options={}):
+        return neo4jupyter.draw_data(data, options)
+
+    def run_query_as_pandas_df(self, query, columns):
+        return DataFrame(self.get_graph().run(query), columns=columns);
 
     def get_session(self):
         return self.connection.get_session()

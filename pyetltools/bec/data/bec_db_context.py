@@ -12,7 +12,7 @@ class BECDBContext(DBContext):
     sql=pyetltools.bec.data.sql
 
     def exec_temp_access(self, group="", comment=""):
-        self.execute_statement(f"exec sp_tempaccess('{group}','{comment}')")
+        print(self.execute_statement(f"exec sp_tempaccess('{group}','{comment}')"))
 
     def get_bank_koncern_map(self):
         sql= sql_meta.ftst2_bank_koncern()

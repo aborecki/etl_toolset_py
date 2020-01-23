@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from copy import copy
 
 import pyodbc
 
@@ -7,10 +8,15 @@ from pyetltools.core.connection import Connection
 class DBConnection(Connection):
     def __init__(self, config):
         super().__init__(config)
+        self.data_source= self.config.data_source
 
     @abstractmethod
     def get_jdbc_subprotocol(self):
         pass
+
+    def set_data_source(self, data_source):
+        self.data_source=data_source
+
 
     # constructs jdbc string: jdbc:sqlserver://pd0240\pdsql0240:1521;databaseName={database};integratedSecurity=true
     def get_jdbc_conn_string(self):
@@ -19,7 +25,7 @@ class DBConnection(Connection):
         ret = ret+":" + str(self.config.port)+";"
 
         if self.config.data_source is not None:
-            ret = ret+f"databaseName={self.config.data_source};"
+            ret = ret+f"databaseName={self.data_source};"
         if self.config.integrated_security:
             ret = ret + f"integratedSecurity=true;"
         else:
@@ -37,7 +43,7 @@ class DBConnection(Connection):
         if self.config.host is not None:
             ret = ret+f"SERVER={self.config.host};"
         if self.config.data_source is not None:
-            ret = ret+f"DATABASE={self.config.data_source};"
+            ret = ret+f"DATABASE={self.data_source};"
         if self.config.dsn is not None:
             ret = ret+f"UID={self.config.username};"
         if self.config.driver is not None:

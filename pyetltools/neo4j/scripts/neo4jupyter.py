@@ -28,7 +28,8 @@ def init_notebook_mode():
     display(
         Javascript(data="require.config({ " +
                         "    paths: { " +
-                        "        vis: '//cdnjs.cloudflare.com/ajax/libs/vis/4.8.2/vis.min' " +
+
+                        "        vis: '//cdnjs.cloudflare.com/ajax/libs/vis/4.8.2/vis.min.js' " +
                         "    } " +
                         "}); " +
                         "require(['vis'], function(vis) { " +
@@ -52,7 +53,6 @@ def vis_network(nodes, edges, physics=True):
     html = base.format(id=unique_id, nodes=json.dumps(nodes), edges=json.dumps(edges), physics=json.dumps(physics))
 
     return HTML(html)
-
 
 def draw(graph, options, physics=True, limit=100):
     """
@@ -81,6 +81,10 @@ def draw(graph, options, physics=True, limit=100):
     """
 
     data = graph.run(query, limit=limit)
+    return draw_data(data, options, physics=True, limit=100)
+
+def draw_data(data, options, physics=True, limit=100):
+
 
     nodes = []
     edges = []

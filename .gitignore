@@ -2,6 +2,8 @@
 pyetltools_passwords.py
 pyetltools_config.py
 
+notebooks/
+
 .idea/
 
 build/
