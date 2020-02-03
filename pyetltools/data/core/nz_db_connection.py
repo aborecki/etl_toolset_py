@@ -24,6 +24,8 @@ class NZDBConnection(DBConnection):
     def get_select(self, limit, table_name, where):
         return "select * from {table_name} where {where} top {limit}"
 
+    def get_sqlalchemy_dialect(self):
+        return "netezza"
 
     @abstractmethod
     def supports_jdbc(self):

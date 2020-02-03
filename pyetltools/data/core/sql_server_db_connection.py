@@ -21,6 +21,9 @@ class SQLServerDBConnection(DBConnection):
     def get_jdbc_subprotocol(self):
         return "sqlserver"
 
+    def get_sqlalchemy_dialect(self):
+        return "mssql"
+
     def get_jdbc_driver(self):
         return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
 

@@ -13,6 +13,9 @@ from pyetltools.data.core.connection import DBConnection
 from pyetltools.data.core.nz_db_connection import NZDBConnection
 from pyetltools.data.core.sql_server_db_connection import SQLServerDBConnection
 from sys import stderr
+import sqlalchemy as sa
+import urllib.parse
+import pyetltools.data.core.sqlalchemy.netezza_dialect
 
 
 def df_to_excel(filename):
@@ -58,7 +61,7 @@ class DBContext:
 
     def run_query_pandas_dataframe(self, query):
         conn = pyodbc.connect(self.connection.get_odbc_conn_string())
-        return pandas.read_sql(query, conn, coerce_float=False, parse_dates =None)
+        return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None)
 
     def execute_statement(self, statement):
         conn = pyodbc.connect(self.connection.get_odbc_conn_string())
@@ -81,6 +84,14 @@ class DBContext:
             except pyodbc.ProgrammingError:
                 continue
         return res;
+
+    def connect_sqlchemy(self):
+
+        con_str = '{}+pyodbc:///?odbc_connect={}'.format(self.connection.get_sqlalchemy_dialect(),
+                                                         urllib.parse.quote_plus(self.connection.get_odbc_conn_string()))
+        print(con_str)
+        engine = sa.create_engine(con_str)
+        return engine.connect();
 
     def get_databases(self):
         ret = self.run_query_pandas_dataframe(self.connection.get_sql_list_databases())
@@ -124,7 +135,7 @@ class DBContext:
             return SQLServerDBConnection(config)
         if config.db_type == ServerType.DB2:
             return DB2DBConnection(config)
-        raise Exception("Unknown db type:"+str(config.db_type) )
+        raise Exception("Unknown db type:" + str(config.db_type))
 
     @classmethod
     def create_from_config(cls, config: DBConfig):

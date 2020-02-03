@@ -28,12 +28,10 @@ class BECJenkinsContext(JenkinsContext):
 
     def bec_start_recon(self, date):
         check_date_YYYYMMDD(date)
-        manual_confirm()
         return self.bec_build_runlikeopc('FTST2','FBIXA990', date)
 
     def bec_start_push_recon(self, date):
         check_date_YYYYMMDD(date)
-        manual_confirm()
         return self.bec_build_runlikeopc('FTST2','FBIXA980', date)
 
     def bec_build_runlikeopc(self, env, opcjob, bankdag=None):
