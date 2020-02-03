@@ -18,22 +18,7 @@ class DBConnection(Connection):
         self.data_source=data_source
 
 
-    # constructs jdbc string: jdbc:sqlserver://pd0240\pdsql0240:1521;databaseName={database};integratedSecurity=true
-    def get_jdbc_conn_string(self):
-        ret = "jdbc:" + self.get_jdbc_subprotocol() + "://"
-        ret = ret + self.config.host
-        ret = ret+":" + str(self.config.port)+";"
 
-        if self.config.data_source is not None:
-            ret = ret+f"databaseName={self.data_source};"
-        if self.config.integrated_security:
-            ret = ret + f"integratedSecurity=true;"
-        else:
-            if self.config.data_source is not None:
-                ret = ret+f"DATABASE={self.config.data_source};"
-        if self.config.dsn is not None:
-            ret = ret+f"UID={self.config.username};"
-        return ret
 
     # constructs odbc connection string in the form DSN=NZFTST2;DATABASE={database};UID={username}
     def get_odbc_conn_string(self):
@@ -42,12 +27,14 @@ class DBConnection(Connection):
             ret = ret+f"DSN={self.config.dsn};"
         if self.config.host is not None:
             ret = ret+f"SERVER={self.config.host};"
-        if self.config.data_source is not None:
+        if self.config.port is not None:
+            ret = ret+f"PORT={self.config.port};"
+        if self.data_source is not None:
             ret = ret+f"DATABASE={self.data_source};"
         if self.config.dsn is not None:
             ret = ret+f"UID={self.config.username};"
-        if self.config.driver is not None:
-            ret = ret + f"Driver={{{self.config.driver}}};"
+        if self.config.odbc_driver is not None:
+            ret = ret + f"Driver={{{self.config.odbc_driver}}};"
         if self.config.integrated_security:
             ret = ret + f"Trusted_Connection=yes;"
         return ret

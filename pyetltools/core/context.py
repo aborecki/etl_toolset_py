@@ -6,12 +6,15 @@ import pyetltools.config.config as cm
 
 _context_factory_map = {}
 
+#  Module responsible for:
+#  Creating contexts from config
+
 
 class Container:
     pass;
 
 class Context:
-
+    
     def __init__(self, config):
         self.config = config
         self.config_key = config.key
@@ -30,6 +33,8 @@ def set_attributes_from_config():
     for conf_key in cm.get_keys():
         try:
             c = get(conf_key)
+            if c is None:
+                continue
             keys=conf_key.split("/");
             if len(keys)>1:
                 group_name=keys[0]
@@ -38,9 +43,11 @@ def set_attributes_from_config():
                 if not hasattr(pyetltools.context, group_name):
                     setattr(pyetltools.context, group_name, Container())
                 setattr(getattr(pyetltools.context, group_name), key, c)
+                print("Context loaded: "+group_name+"."+key)
             else:
                 key = keys[0]
                 setattr(pyetltools.context, key, c)
+                print("Context loaded: " + key)
         except Exception as e:
             print("Unable to get " + conf_key);
             print(e);
@@ -56,6 +63,8 @@ def get_config(config_key):
 
 def get(config_key):
     config = cm.get_config(config_key)
+    if not isinstance(config, pyetltools.config.config.Config):
+        return None
     if type(config) not in _context_factory_map:
         raise Exception("Context factory for " + str(type(config)) + " not configured.")
     factory = _context_factory_map[type(config)];

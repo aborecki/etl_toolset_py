@@ -1,20 +1,24 @@
+from __future__ import annotations
 import logging
 from typing import Dict, Any
 import traceback
 import getpass
 
-
-
 from typing import Dict
 
 
+
 class Config:
-    def __init__(self, key):
+    def __init__(self, key: str, template: Config = None):
+        if template:
+            # copy all field values from template config
+            self.__dict__ = template.__dict__.copy()
+
         self.key = key
 
 
 class ConfigValue:
-    def __init__(self, key, value):
+    def __init__(self, key: str, value):
         self.key = key
         self.value = value
 
@@ -23,16 +27,15 @@ _config_entries: Dict[str, Config] = {}
 _passwords: Dict[str, str] = {}
 
 
-def add(config):
+def add(config: Config):
     key = config.key
     if key not in _config_entries:
         _config_entries[key] = config
-    return _config_entries.get(key)
 
 
-def get_config(key):
+def get_config(key: str) -> Config:
     if key not in _config_entries:
-        raise Exception("Configuration with key "+key+" not found.")
+        raise Exception("Configuration with key " + key + " not found.")
     return _config_entries.get(key)
 
 
@@ -46,9 +49,9 @@ def filter_dict(dict, by_key=lambda x: True, by_value=lambda x: True):
             yield (k, v)
 
 
-def get_password(key):
+def get_password(key: str):
     if key not in _passwords:
-        _passwords[key] =  getpass.getpass(f"Enter password to {key}: ")
+        _passwords[key] = getpass.getpass(f"Enter password to {key}: ")
     return _passwords[key]
 
 
@@ -62,8 +65,8 @@ except Exception as e:
 
 try:
     import pyetltools_passwords
+
     _passwords = dict(pyetltools_passwords.passwords)
 except:
     print("pyetltools_passwords module not found or does not contain passwords dictionary")
     pass
-

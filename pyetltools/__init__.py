@@ -2,7 +2,7 @@ import logging, sys
 
 import pyetltools
 import pyetltools.config
-from pyetltools.bec.data.bec_db_context import BECDBContext
+from pyetltools.bec.data.context import BECDBContext
 
 from pyetltools.data.spark import spark_helper
 from pyetltools.data.core.context import DBContext
@@ -10,6 +10,7 @@ from pyetltools.data.spark.context import SparkContext
 from pyetltools.jenkins.context import JenkinsContext
 from pyetltools.jira import context
 from pyetltools.jira.context import JiraContext
+from pyetltools.data import helper
 
 import pyetltools.bec
 from pyetltools.neo4j.context import NEO4JContext
@@ -21,9 +22,10 @@ logging.getLogger().setLevel(logging.WARNING)
 logging.info(__name__+":__init__.py")
 
 context = pyetltools.core.context
+sql = pyetltools.bec.data.sql
 
 spark_helper= spark_helper
-
+helper=helper
 def get_spark_session():
     return spark_helper.get_spark_session()
 

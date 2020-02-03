@@ -36,9 +36,14 @@ class BECJenkinsContext(JenkinsContext):
         manual_confirm()
         return self.bec_build_runlikeopc('FTST2','FBIXA980', date)
 
-    def bec_build_runlikeopc(self, env, opcjob, bankdag):
+    def bec_build_runlikeopc(self, env, opcjob, bankdag=None):
+        params={"runopc_opcjob": opcjob}
+        if bankdag is not None:
+            params["runopc_bankdag"]=bankdag
+        print("Running "+get_url_run_like_opc(env)+" "+str(params) )
+        manual_confirm()
         return self.build(get_url_run_like_opc(env),
-              params={"runopc_opcjob": opcjob, "runopc_bankdag": bankdag})
+              params=params)
 
 
     @classmethod

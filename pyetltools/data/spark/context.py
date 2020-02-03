@@ -21,6 +21,7 @@ class SparkContext:
     def __init__(self, config: SparkConfig, connection: SparkConnection):
         self.config = config
         self.connection = connection
+        self.sql=self.get_spark_session().sql
 
     @classmethod
     def create_connection_from_config(cls, config: SparkConfig):
