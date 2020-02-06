@@ -18,7 +18,9 @@ class DBConfig(Config):
                  odbc_driver=None,
                  integrated_security=None,
                  supports_jdbc=None,
-                 supports_odbc=None):
+                 supports_odbc=None,
+                 load_db_contexts=None,
+                 spark_context="SPARK"):
         self.db_type = None
         self.host = None
         self.port = None
@@ -30,6 +32,8 @@ class DBConfig(Config):
         self.integrated_security = None
         self.supports_jdbc=None
         self.supports_odbc=None
+        self.load_db_contexts=None
+        self.spark_context=None
 
         super().__init__(key=key, template=template)
 
@@ -55,6 +59,10 @@ class DBConfig(Config):
             self.supports_jdbc=supports_jdbc
         if supports_odbc is not None:
             self.supports_odbc=supports_odbc
+        if load_db_contexts is not None:
+            self.load_db_contexts = load_db_contexts
+        if spark_context is not None:
+            self.spark_context = spark_context
 
 
 

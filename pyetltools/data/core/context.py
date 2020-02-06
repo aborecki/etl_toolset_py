@@ -5,7 +5,9 @@ import pyspark
 import pandas
 from pyspark.sql.types import *
 
+from pyetltools.config.config import Config
 from pyetltools.core import context
+from pyetltools.core.context import Container
 from pyetltools.data.core.db2_connection import DB2DBConnection
 from pyetltools.data.spark import spark_helper
 from pyetltools.data.config import DBConfig, ServerType
@@ -16,27 +18,32 @@ from sys import stderr
 import sqlalchemy as sa
 import urllib.parse
 import pyetltools.data.core.sqlalchemy.netezza_dialect
-
-
-def df_to_excel(filename):
-    spark_helper.df_to_excel(filename)
-
-
-def df_to_csv(dir):
-    spark_helper.df_to_csv(dir)
+from sqlalchemy.orm import sessionmaker
 
 
 class DBContext:
     def __init__(self, config: DBConfig, connection: DBConnection):
         self.config = config
         self.connection = connection
-        self.spark_context = context.get("SPARK")
+        self._spark_context = None
+        self.DS=Container()
+
+        if config.load_db_contexts:
+            self.load_db_sub_contexts()
+
+
+    @property
+    def spark_context(self):
+        # implements lazy load of spark context to speed up library initialization
+        if self._spark_context is None:
+            self._spark_context=context.get(self.config.spark_context)
+        return self._spark_context
 
     def set_data_source(self, data_source):
         self.connection.set_data_source(data_source)
         return self
 
-    def run_query_spark_dataframe(self, query, registerTempTableName=None):
+    def run_query_spark_dataframe(self, query,  registerTempTableName=None):
         if self.connection.supports_jdbc():
             cf = self.spark_context.get_spark_session().read.format("jdbc") \
                 .option("url", self.connection.get_jdbc_conn_string()) \
@@ -85,18 +92,58 @@ class DBContext:
                 continue
         return res;
 
-    def connect_sqlchemy(self):
 
-        con_str = '{}+pyodbc:///?odbc_connect={}'.format(self.connection.get_sqlalchemy_dialect(),
-                                                         urllib.parse.quote_plus(self.connection.get_odbc_conn_string()))
-        print(con_str)
-        engine = sa.create_engine(con_str)
-        return engine.connect();
+
+    def sa_get_engine(self):
+        con_str = self.connection.get_sqlalchemy_conn_string()
+        return sa.create_engine(con_str)
+
+    def sa_connect(self):
+        return self.sa_get_engine().connect();
+
+    def sa_get_session_class(self):
+        return sessionmaker(bind=self.sa_get_engine())
+
+    def sa_get_session(self):
+        # create object of the sqlalchemy class
+        return self.sa_get_session_class()()
+
+    def sa_get_metadata_for_table(self, table):
+        from sqlalchemy import MetaData
+        metadata = MetaData(bind=self.sa_get_engine(), reflect=False)
+        schema_table_split=table.split(".")
+        # take last part as tablename and part before as schema
+        schema=None
+        if len(schema_table_split)>1:
+            _table=schema_table_split[-1]
+            _schema=schema_table_split[-2]
+        metadata.reflect(only=[_table], schema=_schema)
+        return metadata.tables[table]
+
+
+    def sa_helper_print_object_template(self, table):
+        table_meta_data=self.sa_get_metadata_for_table(table)
+        ret = []
+        for i in table_meta_data.columns:
+            x = repr(i)
+            ss = x.split(",")
+            ret.append(i.name.lower() + "= Column(" + ss[1] + ")")
+        print("\n".join(ret))
+
+        ret = []
+        for i in table_meta_data.columns:
+            ret.append("'" + i.name.lower() + "'")
+        print("__ordering=[" + ",".join(ret) + "]")
 
     def get_databases(self):
         ret = self.run_query_pandas_dataframe(self.connection.get_sql_list_databases())
         ret.columns = ret.columns.str.upper()
         return list(ret["NAME"])
+
+    def get_object_by_name_regex(self, regex):
+        objects=self.run_query_pandas_dataframe(self.connection.get_sql_list_objects())
+        objects.columns = map(str.lower, objects.columns)
+        return objects[objects.name.str.match(regex)]
 
     def get_objects(self):
         return self.run_query_pandas_dataframe(self.connection.get_sql_list_objects())
@@ -127,6 +174,24 @@ class DBContext:
         return self.run_query_pandas_dataframe(
             self.connection.get_sql_list_objects_from_datbases_single_query(databases))
 
+    def get_context_for_each_database(self):
+        ret={}
+        for db in self.get_databases():
+            new_conf = DBConfig(template=self.config, data_source=db, load_db_contexts=False)
+            ctx=self.create_from_config(new_conf)
+            ret[db] = ctx
+        return ret
+
+    def load_db_sub_contexts(self):
+        """
+        Adds database contexts for each database
+        :return:
+        """
+        for db, ctx in self.get_context_for_each_database().items():
+            if not hasattr(self.DS, db):
+                setattr(self.DS, db, ctx)
+
+
     @classmethod
     def create_connection_from_config(cls, config: DBConfig):
         if config.db_type == ServerType.NZ:
@@ -144,3 +209,12 @@ class DBContext:
     @classmethod
     def register_context_factory(cls):
         context.register_context_factory(DBConfig, DBContext)
+
+    @classmethod
+    def df_to_excel(filename):
+        spark_helper.df_to_excel(filename)
+
+    @classmethod
+    def df_to_csv(dir):
+        spark_helper.df_to_csv(dir)
+

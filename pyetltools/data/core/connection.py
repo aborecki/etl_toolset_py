@@ -1,3 +1,4 @@
+import urllib
 from abc import abstractmethod
 from copy import copy
 
@@ -5,34 +6,36 @@ import pyodbc
 
 from pyetltools.core.connection import Connection
 
+
 class DBConnection(Connection):
     def __init__(self, config):
         super().__init__(config)
-        self.data_source= self.config.data_source
+        self.data_source = self.config.data_source
 
     @abstractmethod
     def get_jdbc_subprotocol(self):
         pass
 
     def set_data_source(self, data_source):
-        self.data_source=data_source
+        self.data_source = data_source
 
-
-
+    def get_sqlalchemy_conn_string(self):
+        return '{}+pyodbc:///?odbc_connect={}'.format(self.get_sqlalchemy_dialect(),
+                                                      urllib.parse.quote_plus(self.get_odbc_conn_string()))
 
     # constructs odbc connection string in the form DSN=NZFTST2;DATABASE={database};UID={username}
     def get_odbc_conn_string(self):
-        ret=""
+        ret = ""
         if self.config.dsn is not None:
-            ret = ret+f"DSN={self.config.dsn};"
+            ret = ret + f"DSN={self.config.dsn};"
         if self.config.host is not None:
-            ret = ret+f"SERVER={self.config.host};"
+            ret = ret + f"SERVER={self.config.host};"
         if self.config.port is not None:
-            ret = ret+f"PORT={self.config.port};"
+            ret = ret + f"PORT={self.config.port};"
         if self.data_source is not None:
-            ret = ret+f"DATABASE={self.data_source};"
+            ret = ret + f"DATABASE={self.data_source};"
         if self.config.dsn is not None:
-            ret = ret+f"UID={self.config.username};"
+            ret = ret + f"UID={self.config.username};"
         if self.config.odbc_driver is not None:
             ret = ret + f"Driver={{{self.config.odbc_driver}}};"
         if self.config.integrated_security:
@@ -61,6 +64,3 @@ class DBConnection(Connection):
     @abstractmethod
     def supports_odbc(self):
         pass;
-
-
-

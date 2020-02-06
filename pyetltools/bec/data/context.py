@@ -1,6 +1,7 @@
 import pyetltools
 import pyetltools.bec.data.sql.recon as sql_recon
 import pyetltools.bec.data.sql.meta as sql_meta
+from pyetltools.bec.model.entities import *
 
 from pyetltools.core import context
 from pyetltools.data.config import DBConfig
@@ -39,12 +40,23 @@ class BECDBContext(DBContext):
         print("SQL:\n" + sql)
         return self.get_pandas_dataframe(sql)
 
+    def get_release_status_workflow_sa(self):
+        session= self.sa_get_session()
+        return session.query(ReleaseStatusWorkflow)
+
+    def get_release_status_table_sa(self):
+        session= self.sa_get_session()
+        return session.query(ReleaseStatusTable)
+
+
     def __init__(self, config: DBContext, connection: DBConnection):
         super().__init__(config, connection)
+
 
     @classmethod
     def create_from_config(cls, config: DBConfig):
         return BECDBContext(config, super().create_connection_from_config(config))
+
 
     @classmethod
     def register_context_factory(cls):

@@ -1,5 +1,5 @@
 '''SQLAlchemy dialect for Netezza'''
-
+from sqlalchemy import sql, exc
 from sqlalchemy.dialects import registry
 from sqlalchemy.engine import reflection
 from sqlalchemy.connectors.pyodbc import PyODBCConnector
@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql.base import (
 import sqlalchemy.types as sqltypes
 from sqlalchemy.schema import DDLElement, SchemaItem
 from sqlalchemy.sql import text, bindparam
+import sqlalchemy.util as util
 import pyodbc
 import re
 from sqlalchemy.ext.compiler import compiles
@@ -168,7 +169,7 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
     name = 'netezza'
     encoding = 'latin9'
     default_paramstyle = 'qmark'
-    returns_unicode_strings = False
+    returns_unicode_strings = True
     supports_native_enum = False
     supports_sequences = True
     sequences_optional = False
@@ -183,7 +184,7 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
         super(NetezzaODBC, self).initialize(connection)
         # PyODBC connector tries to set these to true...
         self.supports_unicode_statements = True
-        self.supports_unicode_binds = False
+        self.supports_unicode_binds = True
         self.returns_unicode_strings = True
         self.convert_unicode = 'ignore'
         self.encoding = 'latin9'
@@ -199,18 +200,34 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
         result = connection.execute(sql, (str(tablename), dbname)).scalar()
         return bool(result)
 
+    @reflection.cache
     def get_table_names(self, connection, schema=None, **kw):
-        print(connection)
         result = connection.execute(
-            "select tablename as name from _v_table "
-            "where tablename not like '_t_%'")
+            sql.text(
+                    "select tablename as name from _v_table "
+                    "where schema=:schema and tablename not like '_t_%'"
+            ).columns(relname=sqltypes.Unicode),
+            schema=schema if schema is not None else self.default_schema_name,
+        )
         table_names = [r[0] for r in result]
         return table_names
+
+
+    @reflection.cache
+    def get_schema_names(self, connection, **kw):
+        result = connection.execute(
+            sql.text(
+                "select schema from _v_schema"
+                "ORDER BY schema"
+            ).columns(nspname=sqltypes.Unicode)
+        )
+        return [name for name, in result]
 
     @reflection.cache
     def get_columns(self, connection, table_name, schema=None, **kw):
         SQL_COLS = """
-            SELECT CAST(a.attname AS VARCHAR(128)) as name,
+            SELECT --CAST(a.attname AS VARCHAR(128)) as name,
+                   a.attname as name,
                    a.atttypid as typeid,
                    not a.attnotnull as nullable,
                    a.attcolleng as length,
@@ -219,6 +236,7 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
             WHERE a.name = :tablename
             ORDER BY a.attnum
         """
+
         s = text(SQL_COLS,
                  bindparams=[bindparam('tablename', type_=sqltypes.String)],
                  typemap={'name': NAME,
@@ -226,6 +244,7 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
                           'nullable': sqltypes.Boolean,
                           'length': sqltypes.Integer,
                           'format_type': sqltypes.String,
+                          'tablename': sqltypes.String,
                           })
         c = connection.execute(s, tablename=table_name)
         rows = c.fetchall()
@@ -235,7 +254,7 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
             coltype_class, has_length = oid_datatype_map[typeid]
             if coltype_class is sqltypes.Numeric:
                 precision, scale = re.match(
-                    r'numeric\((\d+),(\d+)\)', format_type).groups()
+                    r'numeric\((\d+),(\d+)\)',format_type.lower()).groups()
                 coltype = coltype_class(int(precision), int(scale))
             elif has_length:
                 coltype = coltype_class(length)
@@ -254,6 +273,22 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
         return {'constrained_columns': [], 'name': None}
 
     @reflection.cache
+    def get_unique_constraints(
+            self, connection, table_name, schema=None, **kw
+    ):
+        # TODO
+        return []
+
+    @reflection.cache
+    def get_check_constraints(self, connection, table_name, schema=None, **kw):
+        return [];
+
+    @reflection.cache
+    def get_table_comment(self, connection, table_name, schema=None, **kw):
+        # TODO
+        return {"text": ""}
+
+    @reflection.cache
     def get_foreign_keys(self, connection, table_name, schema=None, **kw):
         '''Netezza doesn't have foreign keys'''
         return []
@@ -265,21 +300,63 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
 
     @reflection.cache
     def get_view_names(self, connection, schema=None, **kw):
+        if schema is not None:
+            schema_where_clause = "schema = :schema"
+        else:
+            schema_where_clause = "1=1"
         result = connection.execute(
             "select viewname as name from _v_view"
-            "where viewname not like '_v_%'")
+            "where (%s) and viewname not like '_v_%'"
+            % schema_where_clause)
+
         return [r[0] for r in result]
 
     def get_isolation_level(self, connection):
         return self.isolation_level
 
     def _get_default_schema_name(self, connection):
-        '''Netezza doesn't use schemas'''
-        raise NotImplementedError
+        return "DBO"
 
     def _check_unicode_returns(self, connection):
         '''Netezza doesn't *do* unicode (except in nchar & nvarchar)'''
         pass
+
+    @reflection.cache
+    def get_table_oid(self, connection, table_name, schema=None, **kw):
+        """Fetch the oid for schema.table_name.
+
+        Several reflection methods require the table oid.  The idea for using
+        this method is that it can be fetched one time and cached for
+        subsequent calls.
+
+        """
+        table_oid = None
+        if schema is not None:
+            schema_where_clause = "schema = :schema"
+        else:
+            schema_where_clause = "1=1"
+        query = (
+                """
+                SELECT * FROM _V_TABLE
+                WHERE (%s)
+                AND tablename = :table_name 
+            """
+                % schema_where_clause
+        )
+        # Since we're binding to unicode, table_name and schema_name must be
+        # unicode.
+        table_name = util.text_type(table_name)
+        if schema is not None:
+            schema = util.text_type(schema)
+        s = sql.text(query).bindparams(table_name=sqltypes.Unicode)
+        s = s.columns(oid=sqltypes.Integer)
+        if schema:
+            s = s.bindparams(sql.bindparam("schema", type_=sqltypes.Unicode))
+        c = connection.execute(s, table_name=table_name, schema=schema)
+        table_oid = c.scalar()
+        if table_oid is None:
+            raise exc.NoSuchTableError(table_name)
+        return table_oid
 
 
 class CreateTableAs(DDLElement):

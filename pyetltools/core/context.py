@@ -1,20 +1,25 @@
 from abc import abstractmethod
+import traceback
 import logging
 
 import pyetltools
 import pyetltools.config.config as cm
 
+
+
 _context_factory_map = {}
+
 
 #  Module responsible for:
 #  Creating contexts from config
 
 
 class Container:
-    pass;
+    pass
+
 
 class Context:
-    
+
     def __init__(self, config):
         self.config = config
         self.config_key = config.key
@@ -35,26 +40,23 @@ def set_attributes_from_config():
             c = get(conf_key)
             if c is None:
                 continue
-            keys=conf_key.split("/");
-            if len(keys)>1:
-                group_name=keys[0]
-                key=keys[1]
+            keys = conf_key.split("/");
+            if len(keys) > 1:
+                group_name = keys[0]
+                key = keys[1]
                 # add group name if not exists
                 if not hasattr(pyetltools.context, group_name):
                     setattr(pyetltools.context, group_name, Container())
                 setattr(getattr(pyetltools.context, group_name), key, c)
-                print("Context loaded: "+group_name+"."+key)
+                print("Context loaded: " +str(type(c)) + " " + group_name + "." + key)
             else:
                 key = keys[0]
                 setattr(pyetltools.context, key, c)
-                print("Context loaded: " + key)
+                print("Context loaded: " +str(type(c)) + " "+  key)
         except Exception as e:
             print("Unable to get " + conf_key);
-            print(e);
-            pass;
-
-
-
+            print("Exception:"+str(e))
+            traceback.print_exc()
 
 
 def get_config(config_key):
@@ -74,3 +76,4 @@ def get(config_key):
 def register_context_factory(config_type, context_factory_type):
     logging.info("Adding context factory " + str(context_factory_type) + " for " + str(config_type) + ".")
     _context_factory_map[config_type] = context_factory_type
+

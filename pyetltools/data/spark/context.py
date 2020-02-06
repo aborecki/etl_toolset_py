@@ -4,6 +4,7 @@ import pandas
 from pyspark.sql.types import *
 
 from pyetltools.core import context
+from pyetltools.core.context import Context
 from pyetltools.data.spark import spark_helper
 from pyetltools.data.spark.config import SparkConfig
 from pyetltools.data.spark.connection import SparkConnection
@@ -17,7 +18,7 @@ def df_to_csv(dir):
     spark_helper.df_to_csv(dir)
 
 
-class SparkContext:
+class SparkContext(Context):
     def __init__(self, config: SparkConfig, connection: SparkConnection):
         self.config = config
         self.connection = connection

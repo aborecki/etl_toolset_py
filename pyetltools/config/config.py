@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import importlib
 import logging
 from typing import Dict, Any
 import traceback
@@ -35,7 +37,7 @@ def add(config: Config):
 
 def get_config(key: str) -> Config:
     if key not in _config_entries:
-        raise Exception("Configuration with key " + key + " not found.")
+        raise Exception("Configuration with key " + str(key) + " not found.")
     return _config_entries.get(key)
 
 
@@ -57,16 +59,18 @@ def get_password(key: str):
 
 logging.info(__name__ + ":__init__.py")
 # trying to import pyetltools_config.py config-in-file
-try:
+
+pyetltools_config_lib = importlib.util.find_spec("pyetltools_config")
+found_config = pyetltools_config_lib is not None
+if found_config:
     import pyetltools_config
-except Exception as e:
+else:
     print("Cannot import pyetltools_config.")
-    traceback.print_exc(e)
 
-try:
+pyetltools_passwords_lib = importlib.util.find_spec("pyetltools_passwords")
+found_passwords = pyetltools_config_lib is not None
+if found_passwords:
     import pyetltools_passwords
-
     _passwords = dict(pyetltools_passwords.passwords)
-except:
+else:
     print("pyetltools_passwords module not found or does not contain passwords dictionary")
-    pass
