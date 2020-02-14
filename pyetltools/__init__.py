@@ -1,10 +1,17 @@
-import pyetltools
-import pyetltools.config.config as cm
+import logging
+import sys
 
-from pyetltools.core.context import Context
-from pyetltools.bec import context
-from pyetltools.bec.model import entities
-from pyetltools.data.spark import spark_helper
-from pyetltools.data import helper
-from pyetltools import init
-init.init()
+from pyetltools.core import connector
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(logging.WARNING)
+logging.info(__name__ + "__init__.py")
+
+connector.load_config()
+connectors = connector.connectors
+
+
+
+
+

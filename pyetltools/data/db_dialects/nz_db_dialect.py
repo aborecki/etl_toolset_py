@@ -1,11 +1,6 @@
-from abc import ABC, abstractmethod
+from pyetltools.data.db_dialect import DBDialect
 
-from pyetltools.core import connection
-from pyetltools.data.core.connection import DBConnection
-
-
-
-class NZDBConnection(DBConnection):
+class NZDBDialect(DBDialect):
 
     def get_sql_list_objects(self):
         return """select  SCHEMA , tablename as NAME, 'TABLE' TYPE from _v_table UNION ALL 
@@ -26,11 +21,3 @@ class NZDBConnection(DBConnection):
 
     def get_sqlalchemy_dialect(self):
         return "netezza"
-
-    @abstractmethod
-    def supports_jdbc(self):
-        return False;
-
-    @abstractmethod
-    def supports_odbc(self):
-        return True;

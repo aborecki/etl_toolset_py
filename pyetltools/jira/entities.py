@@ -22,3 +22,11 @@ class JiraIssue:
 
     def __repr__(self):
         return self.get_id()+":"+self.get_summary()
+
+
+    @classmethod
+    def from_content(cls, content):
+        return JiraIssue(json)
+
+    def from_search_result(self, content):
+        return []

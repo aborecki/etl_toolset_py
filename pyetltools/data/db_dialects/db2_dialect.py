@@ -1,17 +1,11 @@
-from abc import ABC, abstractmethod
+from pyetltools.data.db_dialect import DBDialect
 
-from pyetltools.core import connection
-from pyetltools.data.core.connection import DBConnection
-
-
-
-class DB2DBConnection(DBConnection):
-
+class DB2DBDialect(DBDialect):
     def get_sql_list_objects(self):
-        return None
+        raise NotImplemented()
 
     def get_sql_list_databases(self):
-        return None
+        raise NotImplemented()
 
     def get_select(self, limit, table_name, where):
         return "select  * from {table_name} where {where} top {limit}"
@@ -22,20 +16,20 @@ class DB2DBConnection(DBConnection):
     def get_jdbc_subprotocol(self):
         return "db2"
 
+    def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
 
-    def get_odbc_conn_string(self):
         ret=""
         if self.config.dsn is not None:
-            ret = ret+f"DSN={self.config.dsn};"
+            ret = ret+f"DSN={dsn};"
         if self.data_source is not None:
-            ret = ret+f"DBALIAS={self.data_source};"
+            ret = ret+f"DBALIAS={data_source};"
         if self.config.odbc_driver is not None:
-            ret = ret + f"Driver={{{self.config.odbc_driver}}};"
+            ret = ret + f"Driver={{{odbc_driver}}};"
         if self.config.integrated_security:
             ret = ret + f"Trusted_Connection=yes;"
         else:
-            ret = ret + f"Pwd={self.get_password()};"
-            ret = ret + f"Uid={self.config.username};"
+            ret = ret + f"Pwd={password};"
+            ret = ret + f"Uid={username};"
         return ret
 
 
@@ -48,10 +42,3 @@ class DB2DBConnection(DBConnection):
             ret = ret+f"/{self.data_source}"
         return ret
 
-    @abstractmethod
-    def supports_jdbc(self):
-        return True;
-
-    @abstractmethod
-    def supports_odbc(self):
-        return True;

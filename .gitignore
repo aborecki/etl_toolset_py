@@ -3,7 +3,8 @@ pyetltools_passwords.py
 pyetltools_config.py
 
 notebooks/
-
+spark-warehouse/
+metastore_db/
 .idea/
 
 build/

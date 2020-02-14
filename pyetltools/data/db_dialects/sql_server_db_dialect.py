@@ -1,9 +1,7 @@
-from abc import ABC, abstractmethod
 
-from pyetltools.data.core.connection import DBConnection
+from pyetltools.data.db_dialect import DBDialect
 
-
-class SQLServerDBConnection(DBConnection):
+class SQLServerDBDialect(DBDialect):
 
     def get_sql_list_objects(self):
         return """select * from INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','VIEW')"""
@@ -28,26 +26,19 @@ class SQLServerDBConnection(DBConnection):
         return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
 
     # constructs jdbc string: jdbc:sqlserver://pd0240\pdsql0240:1521;databaseName={database};integratedSecurity=true
-    def get_jdbc_conn_string(self):
+    def get_jdbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
+
         ret = "jdbc:" + self.get_jdbc_subprotocol() + "://"
-        ret = ret + self.config.host
-        ret = ret+":" + str(self.config.port)+";"
+        ret = ret + host
+        ret = ret+":" + str(port)+";"
 
-        if self.config.data_source is not None:
-            ret = ret+f"databaseName={self.data_source};"
-        if self.config.integrated_security:
+        if data_source is not None:
+            ret = ret+f"databaseName={data_source};"
+        if integrated_security:
             ret = ret + f"integratedSecurity=true;"
-        else:
-            if self.config.data_source is not None:
-                ret = ret+f"DATABASE={self.config.data_source};"
-        if self.config.dsn is not None:
-            ret = ret+f"UID={self.config.username};"
+        #else:
+        #    if data_source is not None:
+        #        ret = ret+f"DATABASE={data_source};"
+        if dsn is not None:
+            ret = ret+f"UID={username};"
         return ret
-
-    @abstractmethod
-    def supports_jdbc(self):
-        return True;
-
-    @abstractmethod
-    def supports_odbc(self):
-        return True;

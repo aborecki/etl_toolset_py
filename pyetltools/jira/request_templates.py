@@ -8,7 +8,7 @@ def get_authentication_headers(username, password):
     return headers
 
 
-def get_create_subissue_body(project_key, parent_key, subissue_summary, subissue_description):
+def get_create_subissue_body_json(project_key, parent_key, subissue_summary, subissue_description):
     subissue_description=subissue_description.replace("\"","\\\"")
     return f"""{{
         "fields":
