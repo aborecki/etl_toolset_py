@@ -9,6 +9,8 @@ from pyetltools.data.db_connector import DBConnector
 
 class BECDBConnector(DBConnector):
 
+    def validate_config(self):
+        super().validate_config()
 
     sql=pyetltools.bec.data.sql
 

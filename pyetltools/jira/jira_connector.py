@@ -24,6 +24,8 @@ class JiraConnector(Connector):
         self.username = username
         self.password = password
 
+    def validate_config(self):
+        super().validate_config()
 
     def get_url(self, suffix):
         return self.config.url.strip("/")+"/"+suffix.strip("/")

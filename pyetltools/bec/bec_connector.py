@@ -1,24 +1,223 @@
+import os
+import re
+
+from pyetltools.bec.hgrepo.hgprod_conector import HGProdConnector
+from pyetltools.bec.jenkins.bec_jenkins_connector import BECJenkinsConnector
 from pyetltools.bec.model.entities import ReleaseStatusWorkflow, ReleaseStatusTable
 from pyetltools.core import connector
+from pyetltools.core.cmd import Cmd
 from pyetltools.core.connector import Connector
 import pyetltools.bec.data.sql.meta as sql_meta
 import pyetltools.bec.data.sql.recon as sql_recon
-
+from pyetltools.data.db_connector import DBConnector
+from pyetltools.infa.infa_cmd_connector import InfaCmdConnector
+from pyetltools.infa.infa_connector import InfaConnector
+from pyetltools.jenkins.jenkins_connector import JenkinsConnector
 
 
 class BECConnector(Connector):
 
-
-    def __init__(self, key, infa):
+    def __init__(self, key, infa_repo_db_connectors={}, infa_connectors={}, hgprod_connectors={}, jenkins_connectors={}, hg_repos_path=None):
         super().__init__(key)
+        self.hg_repos_path=hg_repos_path
+        self.env_manager = BECConnector.EnvManager(infa_repo_db_connectors, infa_connectors, hgprod_connectors, jenkins_connectors)
 
-    class Deploy:
-        def deploy_infa_by_label(self, target_env):
+    def validate_config(self):
+        super().validate_config()
+        self.env_manager.validate_config()
+
+    class EnvManager:
+
+        def __init__(self, infa_repo_db_connectors: dict = None, infa_connectors: dict = None,
+                     hgprod_connectors: dict = None, jenkins_connectors:dict = None, ):
+            self.infa_repo_db_connectors = infa_repo_db_connectors
+            self.infa_connectors = infa_connectors
+            self.hgprod_connectors = hgprod_connectors
+            self.jenkins_connectors=jenkins_connectors
+
+        def validate_config(self):
+            for conn in self.infa_repo_db_connectors.values():
+                connector.get(conn)  # try to get connector
+            for conn in self.infa_connectors.values():
+                connector.get(conn)  # try to get connector
+            for conn in self.hgprod_connectors.values():
+                connector.get(conn)  # try to get connector
+            for conn in self.jenkins_connectors.values():
+                connector.get(conn)  # try to get connector
+
+        def get_db_connector_for_env(self, env) -> DBConnector:
+            assert env in self.infa_repo_db_connectors, f"Infa repo DB connector for environment {env} not found "
+            return connector.get(self.infa_repo_db_connectors[env])
+
+        def get_infa_connector_for_env(self, env) -> InfaConnector:
+            assert env in self.infa_connectors, f"Infa connector for environment {env} not found "
+            return connector.get(self.infa_connectors[env])
+
+        def get_hgprod_connector_for_env(self, env) -> HGProdConnector:
+            assert env in self.hgprod_connectors, f"HGProd connector for environment {env} not found "
+            return connector.get(self.hgprod_connectors[env])
+
+        def get_jenkins_connector_for_env(self, env) -> BECJenkinsConnector:
+            assert env in self.jenkins_connectors, f"Jenkins connector for environment {env} not found "
+            return connector.get(self.jenkins_connectors[env])
+
+    def input_YN(self, prompt):
+        ans=None
+        while ans not in ['Y', 'N']:
+            ans = input(prompt).upper()
+        return ans == 'Y'
+
+
+    def hg_deploy_file_set_label(self, path, label, modify_cloning=False, clonevar=True, clonelist=True):
+        with open(path, 'r') as f:
+            content = f.read()
+        content_new = re.sub(r'^\s*LABEL\s*=\s*.*$', r'LABEL='+label, content, count=1, flags=re.IGNORECASE|re.M)
+
+        if modify_cloning:
+            if not clonevar:
+                content_new = re.sub(r'^\s*CLONEVAR', r'#CLONEVAR', content_new,
+                                     flags=re.IGNORECASE | re.M)
+            else:
+                # uncomment first occurence of CLONEVAR if commented out
+                content_new = re.sub(r'^\s*(#\s*)+CLONEVAR', r'CLONEVAR', content_new, count=1,
+                                         flags=re.IGNORECASE | re.M)
+            if not clonelist:
+                content_new = re.sub(r'^\s*CLONELIST', r'#CLONELIST', content_new,
+                                     flags=re.IGNORECASE | re.M)
+            else:
+                content_new = re.sub(r'^\s*(#\s*)+CLONELIST', r'CLONELIST', content_new, count=1,
+                                     flags=re.IGNORECASE | re.M)
+        with open(path, 'w') as f:
+            f.write(content_new)
+
+    def add_tag_to_commit(self, repository, changeset_id, tag):
+        hgtags_file = os.path.join(self.hg_repos_path, repository, ".hgtags")
+        print(f"Adding tag {tag} to {changeset_id}  in "+hgtags_file)
+        #write the new line to the end - I used append to avoid checking for newline at the end of exisintg file
+        with open(hgtags_file, 'r') as f:
+            current_content=f.readlines()
+        newline=f"{changeset_id} {tag}"
+
+        if f"{changeset_id} {tag}" in [l.strip() for l in current_content]:
+            print(f"{newline} already in file {hgtags_file}")
+        else:
+            with open(hgtags_file, 'w', newline="\n") as f:
+                current_content.append(f"{newline}\n")
+                f.writelines(current_content)
+
+    def hg_deploy_file_change_commit(self, repository, label, tag):
+
+        repository_dir=os.path.join(self.hg_repos_path, repository)
+        Cmd("hg", working_dir=repository_dir).run("pull")
+
+
+        modify_cloning=self.input_YN("Do you want to change clonevar/clonelist variables?")
+        use_clonevar=use_clonelist=None
+        if modify_cloning:
+            use_clonevar=self.input_YN("Do you want to use clonevar?")
+            use_clonelist=self.input_YN("Do you want to use clonelist?")
+
+        deploy_file_path=os.path.join(repository_dir,"PWC_deploy.txt")
+
+        self.hg_deploy_file_set_label(deploy_file_path, label,
+                                      modify_cloning=modify_cloning, clonevar=use_clonevar, clonelist=use_clonelist)
+        print(f"{deploy_file_path} modified.")
+        Cmd("hg", working_dir=repository_dir).run("diff", "PWC_deploy.txt")
+
+        if not self.input_YN(f"Do you want to commit changes to PWC_deploy.txt (you can go now and edit {deploy_file_path} file manually)"):
+               return False
+
+        hg_command=Cmd("hg", working_dir=repository_dir)
+        hg_command.run("pull")
+        hg_command.run("add", "PWC_deploy.txt")
+        hg_command.run("commit", "-m",label, "PWC_deploy.txt")
+        id_out,_,_= hg_command.run("id","-i", "--debug")
+        changeset_id=id_out.strip().rstrip("+")
+        print("Last changeset"+changeset_id)
+        self.add_tag_to_commit(repository, changeset_id, tag)
+        hg_command.run("diff", ".hgtags")
+        if not self.input_YN(f"Do you want to commit changes to .hgtags"):
+            return False
+        hg_command.run("commit", "-m", f"Added tag PWC_MDW_1738 for changeset ", ".hgtags")
+
+        hg_command.run("outgoing", "-v")
+        if not self.input_YN(f"Do you want to push above changes?"):
+            return False
+        hg_command.run("push")
+
+    def deploy_infa_by_label(self, target_env, label, confirm_all=False):
+        infa_connector =  self.env_manager.get_infa_connector_for_env("DEV")
+        hgprod_connector = self.env_manager.get_hgprod_connector_for_env(target_env)
+        jenkins_connector = self.env_manager.get_jenkins_connector_for_env(target_env)
+
+        assert hgprod_connector.environment, f"HGProd connector for env {target_env} has not environment configured."
+
+        if not infa_connector.check_label_exists(label):
+            print(f"Label {label} does not exist.")
+            if confirm_all or self.input_YN(f"Do you want to create label {label}?"):
+                infa_connector.create_label(label)
+        else:
+            print(f"Label {label} exists.")
+            if confirm_all or self.input_YN(f"Do you want to re-deploy label {label} to {target_env}?") :
+                pass
+            else:
+                print("Done.")
+                return False
+        # Create deployment query
+
+        if not infa_connector.check_query_exists(label):
+            print(f"Depoyment query {label} does not exist.")
+            if confirm_all or self.input_YN(f"Do you want to create deployment query {label}?") :
+                infa_connector.create_deployment_query(label)
+        else:
+            print(f"Deployment query {label} exists.")
+            if confirm_all or self.input_YN(f"Do you want to reuse query {label} to deploy to {target_env}?") :
+                pass
+            else:
+                print("Done.")
+                return False
+
+
+        infa_connector.execute_query(label)
+
+        if confirm_all or self.input_YN(f"Do you want to deploy above objects?") :
             pass
+        else:
+            print("Done.")
+            return False
+
+        area= label.split("_")[0] #MDW, RAP
+        repo = "PWC_" +area
+        tag = "PWC_" + label
+        #Hg repos
+
+        self.hg_deploy_file_change_commit(repo, label, tag)
 
 
-    #
-    #
+        # Bestil
+
+
+        jenkins_area=area # MDW, RAP etc
+
+        if confirm_all or self.input_YN(f"Do you want to bestil tag {tag} on hgprod environment "
+                             f"{hgprod_connector.environment} and hgprod repository {repo}?") :
+            pass
+        else:
+            print("Done.")
+            return False;
+
+
+        hgprod_connector.bestil(repo, tag)
+
+        if confirm_all or self.input_YN(f"Do you want to start jenkins build for environment {jenkins_connector.environment} and area {jenkins_area}?"):
+            pass
+        else:
+            print("Done.")
+            return False;
+
+
+        jenkins_connector.bestil(jenkins_area)
+
     # def get_ftst2_db_connector(self):
     #     return  connector.get("DB/NZFTST2").set_data_source("MMDB")
     #

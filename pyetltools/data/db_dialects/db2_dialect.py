@@ -19,16 +19,16 @@ class DB2DBDialect(DBDialect):
     def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
 
         ret=""
-        if self.config.dsn is not None:
+        if dsn is not None:
             ret = ret+f"DSN={dsn};"
-        if self.data_source is not None:
+        if data_source is not None:
             ret = ret+f"DBALIAS={data_source};"
-        if self.config.odbc_driver is not None:
+        if odbc_driver is not None:
             ret = ret + f"Driver={{{odbc_driver}}};"
-        if self.config.integrated_security:
+        if integrated_security:
             ret = ret + f"Trusted_Connection=yes;"
         else:
-            ret = ret + f"Pwd={password};"
+            ret = ret + f"Pwd={password_callback()};"
             ret = ret + f"Uid={username};"
         return ret
 
@@ -36,8 +36,8 @@ class DB2DBDialect(DBDialect):
     # constructs jdbc string: jdbc:sqlserver://pd0240\pdsql0240:1521;databaseName={database};integratedSecurity=true
     def get_jdbc_conn_string(self):
         ret = "jdbc:" + self.get_jdbc_subprotocol() + "://"
-        ret = ret + self.config.host
-        ret = ret+":" + str(self.config.port)
+        ret = ret + self.host
+        ret = ret+":" + str(self.port)
         if self.data_source is not None:
             ret = ret+f"/{self.data_source}"
         return ret

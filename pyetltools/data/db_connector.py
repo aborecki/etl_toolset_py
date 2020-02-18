@@ -28,7 +28,7 @@ class DBConnector(Connector):
                  supports_jdbc=None,
                  supports_odbc=None,
                  load_db_connectors=None,
-                 spark_connector_key="SPARK",
+                 spark_connector="SPARK",
                  db_dialect_class=None
                  ):
         super().__init__(key=key)
@@ -44,7 +44,7 @@ class DBConnector(Connector):
         self.supports_jdbc = supports_jdbc
         self.supports_odbc = supports_odbc
         self.load_db_connectors = load_db_connectors
-        self.spark_connector_key = spark_connector_key
+        self.spark_connector = spark_connector
         self.db_dialect_class = db_dialect_class
 
 
@@ -54,18 +54,19 @@ class DBConnector(Connector):
         if self.load_db_connectors:
             self.load_db_sub_connectors()
 
+    def validate_config(self):
+        super().validate_config()
+        connector.get(self.spark_connector)
+
     def get_spark_connector(self):
-        return connector.get(self.spark_connector_key)
+        return connector.get(self.spark_connector)
 
     def set_data_source(self, data_source):
         self.data_source=data_source
         return self
 
-    def clone_set_data_source(self, data_source):
-        new_conn=copy.copy(self)
-        new_conn.config = copy.copy(self)
-        new_conn.set_data_source(data_source)
-        return new_conn
+    def clone(self):
+        return copy.copy(self)
 
     def get_password(self):
         if self.integrated_security:
@@ -97,6 +98,7 @@ class DBConnector(Connector):
 
     def get_odbc_connection(self):
         pyodbc.connect(self.get_odbc_conn_string())
+
 
 
     def run_query_spark_dataframe(self, query,  registerTempTableName=None):
@@ -228,7 +230,7 @@ class DBConnector(Connector):
         ret={}
         for db in self.get_databases():
 
-            new_conn = self.clone_set_data_source(db)
+            new_conn = self.clone().set_data_source(db)
             new_conn.load_db_connectors=False
             ret[db] = new_conn
         return ret
@@ -240,6 +242,7 @@ class DBConnector(Connector):
         """
         for db, con in self.get_connector_for_each_database().items():
             self.DS._add_attr(db, con)
+
 
     @classmethod
     def df_to_excel(filename):

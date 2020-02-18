@@ -4,6 +4,7 @@ import importlib
 import re
 import traceback
 import logging
+from abc import abstractmethod, ABCMeta
 
 from pyetltools.core.attr_dict import AttrDict
 import pyetltools.core.connector as connector
@@ -17,10 +18,14 @@ class ConfigValue:
         self.key = key
         self.value = value
 
-class Connector:
+class Connector(metaclass=ABCMeta):
     def __init__(self, key, password=None):
         self.key = key
         self.password = password
+
+    @abstractmethod
+    def validate_config(self):
+        pass
 
     def get_password(self):
         if self.password is None:
@@ -65,12 +70,15 @@ def add(connector: Connector):
         connectors._add_attr(key, connector)
     _connectors[connector_key]=connector
     print("Connector added: " + str(type(connector).__name__) + " " + connector_key)
+    return connector
 
 
-def get(connector_key):
-    if connector_key not in _connectors:
-        raise Exception(f"Connector {connector_key} not found.")
-    return _connectors[connector_key]
+def get(connector):
+    if isinstance(connector, Connector):
+        return connector
+    if connector not in _connectors:
+        raise Exception(f"Connector {connector} not found.")
+    return _connectors[connector]
 
 
 def load_config():
@@ -90,3 +98,7 @@ def load_config():
         import pyetltools_passwords
     else:
         print("pyetltools_passworimds module not found or does not contain passwords dictionary")
+
+    for conn_key in _connectors:
+        print("Validate "+conn_key)
+        _connectors.get(conn_key).validate_config()

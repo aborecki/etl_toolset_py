@@ -1,3 +1,4 @@
+import copy
 import re
 import time
 
@@ -11,10 +12,22 @@ from urllib.parse import urljoin
 
 
 class HGProdConnector(Connector):
-    def __init__(self, key, url, username, password=None):
+    def __init__(self, key, url, username, password=None, environment=None):
         super().__init__(key=key, password=password)
         self.url=url
         self.username=username
+        self.environment=environment
+
+    def validate_config(self):
+        super().validate_config()
+
+
+    def clone(self):
+        return copy.copy(self)
+
+    def set_environment(self, env):
+        self.environment=env
+        return self
 
     LOGIN_PAGE = "accounts/login/?next=/"
     REPOS_PAGE = "bestsys/sel_repo"
@@ -88,7 +101,10 @@ class HGProdConnector(Connector):
         return status_env_tag_dict[env]
 
 
-    def bestil(self, repo, tag, env, wait_for_completion=False):
+    def bestil(self, repository, tag, wait_for_completion=True):
+        return self.bestil_with_env(repository, tag, self.environment, wait_for_completion)
+
+    def bestil_with_env(self, repo, tag, env, wait_for_completion=True):
         print("Logging in", end=" ")
         browser = self.login()
         print("DONE")
@@ -104,14 +120,17 @@ class HGProdConnector(Connector):
         print(f"Getting tags list for repository {repo}", end=" ")
         tags_page = browser.open(self.get_url(tags_url))
         print("DONE")
-        tags_list = self.extract_links_from_table(tags_page.read(), ["bestil"], col_nr=0, table_class="datatable")
+        tags_page_content=tags_page.read()
+        tags_list = self.extract_links_from_table(tags_page_content, ["bestil"], col_nr=0, table_class="datatable")
 
-        envs_url = self.get_case_insensitive_key_value(tags_list, tag)["bestil"]
+        tag_urls=self.get_case_insensitive_key_value(tags_list, tag)
 
-        if not envs_url:
+
+        if not tag_urls:
             print(sorted(tags_list.keys(),key=str.casefold))
             print(f"{tag} not in list of tags for repo {repo}.")
             return False
+        envs_url = tag_urls["bestil"]
         print(f"Getting environements list for repository {repo} and tag {tag}", end=" ")
         envs_page = browser.open(self.get_url(envs_url))
         print("DONE")

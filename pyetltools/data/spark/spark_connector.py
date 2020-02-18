@@ -28,6 +28,10 @@ class SparkConnector(Connector):
         self._sql = None
         self._spark_session = None
 
+    def validate_config(self):
+        super().validate_config()
+
+
     def get_df_from_jdbc(self, jdbc_conn_string, query_or_table, driver, username, password):
         cf = self.get_spark_session().read.format("jdbc") \
             .option("url", jdbc_conn_string) \

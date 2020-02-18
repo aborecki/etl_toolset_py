@@ -11,6 +11,9 @@ class AttrDict:
     def get(self, key):
         return self.__getattr__(key)
 
+    def keys(self):
+        return self._data.keys()
+
     def __getattr__(self, key):
         if not self._is_initialized:
             self._is_initialized = True
