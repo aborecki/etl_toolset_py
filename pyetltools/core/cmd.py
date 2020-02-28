@@ -39,9 +39,13 @@ class Cmd():
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.working_dir)
         self.restore_env()
         print("STDOUT:")
-        stdout=res.stdout.decode("utf-8")
+        stdout=res.stdout.decode("latin-1")
         print(stdout)
         print("STDERR:")
-        stderror=res.stderr.decode("utf-8")
+        stderror=res.stderr.decode("latin-1")
         print(stderror)
-        return (stdout, stderror, res)
+        print("RESULT:")
+        print(res.returncode)
+        if res.returncode != 0:
+            raise Exception("Command failed with error code:"+res.returncode)
+        return res

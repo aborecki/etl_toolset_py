@@ -1,4 +1,4 @@
-class AttrDict:
+class AttrDict(object):
     def __init__(self, initializer=None):
         self._data=dict()
         self._initializer = initializer
@@ -18,7 +18,11 @@ class AttrDict:
         if not self._is_initialized:
             self._is_initialized = True
             self._initialize()
-        return self._data[key]
+        if key in self._data:
+            return self._data[key]
+        else:
+            # Default behaviour
+            raise AttributeError(f"{key} does not exists.")
 
     def _add_attr(self, key, value):
         self._data[key]=value

@@ -1,5 +1,8 @@
 import functools
+import re
 from typing import List
+
+import pandas
 
 from pyetltools.core import connector
 from pyetltools.core.connector import Connector
@@ -89,13 +92,52 @@ class InfaConnector(Connector):
 
         return True
 
-    def execute_query(self, query_name):
+    def execute_query(self, query_name,sep=" "):
+        if not self.check_query_exists(query_name):
+            print(f"Query {query_name} does not exists.")
+            return None
+        return self.get_infa_cmd_connector().run_pmrep_execute_query(query_name, sep=sep)
+
+    def execute_query_as_pandas_df(self, query_name):
+        ret= self.execute_query(query_name, sep=",")
+        if ret.returncode == 0:
+            return self._parse_query_output_as_pandas_df(ret)
+
+
+    def find_checkout(self, sep=" "):
+         return self.get_infa_cmd_connector().run_pmrep_find_checkout(sep=sep)
+
+    def find_checkout_as_pandas_df(self):
+        ret=self.find_checkout(sep=",")
+        if ret.returncode == 0:
+            return self._parse_query_output_as_pandas_df(ret)
+        else:
+            return None
+
+    def _parse_query_output_as_pandas_df(self, output):
+        objs = []
+        lines=output.stdout.decode("latin-1").splitlines()
+        for line in lines:
+            l=line.strip()
+            if ',' in l and 'Informatica' not in l and l.strip()!="":
+                m = re.match(r"([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)", l)
+                if m:
+                    objs.append((m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)))
+                else:
+                    m = re.match(r"([^,]+),([^,]+),([^,]+),([^,]+)", l)
+                    if m:
+                        objs.append((m.group(1), m.group(2), "", m.group(3), m.group(4)))
+                    else:
+                        raise Exception("Cannot parse"+l)
+        return pandas.DataFrame(objs, columns=["FOLDER","OBJECT_TYPE","REUSABLE","OBJECT_NAME","VERSION_NUMBER"])
+
+    def delete_query(self, query_name, query_type):
         infa_cmd = self.get_infa_cmd_connector()
 
         if not self.check_query_exists(query_name):
             print(f"Query {query_name} does not exists.")
             return False
-        infa_cmd.run_pmrep_execute_query(query_name)
+        infa_cmd.run_pmrep_delete_query(query_name, query_type)
 
         return True
 
@@ -114,8 +156,8 @@ class InfaConnector(Connector):
     def get_last_created_query(self, label_prefix):
         return self.get_infa_repo_db_connector().run_query_pandas_dataframe(self.Sqls.sql_query_max(label_prefix))
 
-    def create_deployment_query(self, label):
 
+    def create_deployment_query(self, label):
         query_name = label
         if not self.check_label_exists(label):
             print(f"Label {label} not exists.")
@@ -126,4 +168,17 @@ class InfaConnector(Connector):
         deployment_expression = f"""Label Equals {label} and ReusableStatus In (Non-reusable,Reusable) and LatestStatus in ('Latest Checked-in', Older) and IncludeChildren Where (Any) depends on ((Any), ('Non-reusable Dependency'))"""
         infa_cmd = self.get_infa_cmd_connector()
         infa_cmd.run_pmrep_create_query(query_name, "shared", deployment_expression)
+        return True
+
+
+    def create_deployment_query_checked_out(self, label, query_name, query_type="shared"):
+        if not self.check_label_exists(label):
+            print(f"Label {label} not exists.")
+            return False
+        if self.check_query_exists(query_name):
+            print(f"Query {query_name} already exists.")
+            return False
+        deployment_expression = f"""LatestStatus in (Checked-out)  """
+        infa_cmd = self.get_infa_cmd_connector()
+        infa_cmd.run_pmrep_create_query(query_name, query_type, deployment_expression)
         return True

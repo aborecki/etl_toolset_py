@@ -26,7 +26,7 @@ class JiraIssue:
 
     @classmethod
     def from_content(cls, content):
-        return JiraIssue(json)
+        return JiraIssue(content)
 
     def from_search_result(self, content):
         return []

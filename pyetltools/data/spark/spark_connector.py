@@ -27,6 +27,7 @@ class SparkConnector(Connector):
         self.options = options
         self._sql = None
         self._spark_session = None
+        self.spark_helper = spark_helper
 
     def validate_config(self):
         super().validate_config()

@@ -3,6 +3,8 @@ import sys
 
 from pyetltools.core import connector
 
+import pyetltools.data.pandas.pandas_helper
+
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logging.getLogger().setLevel(logging.DEBUG)
 logging.getLogger().setLevel(logging.WARNING)

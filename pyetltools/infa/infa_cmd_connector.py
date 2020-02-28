@@ -58,10 +58,19 @@ class InfaCmdConnector(Connector):
     def run_pmrep_create_query(self, query_name, query_type, expression):
         return self.run_pmrep("createquery", "-n", query_name, "-t", query_type, "-e", expression)
 
-    def run_pmrep_execute_query(self, query_name):
-        return self.run_pmrep("executequery", "-q", query_name)
+    def run_pmrep_execute_query(self, query_name,sep=" "):
+        return self.run_pmrep("executequery", "-q", query_name,"-b","-c",sep)
 
+
+    def run_pmrep_find_checkout(self, sep=" "):
+        #-u all users
+        #-b verbose
+        return self.run_pmrep("findcheckout","-u","-b","-c",sep)
+
+
+    def run_pmrep_delete_query(self, query_name, query_type):
+        return self.run_pmrep("deletequery", "-n", query_name,"-t",query_type,"-f")
 
     def convert_log_bin_to_xml(self, xml_file_path):
-        res = self.run_infacmd(["ConvertLogFile", "-fm", "XML", "-in", f"{xml_file_path}"])
+        res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{xml_file_path}")
 

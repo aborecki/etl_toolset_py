@@ -100,5 +100,6 @@ def load_config():
         print("pyetltools_passworimds module not found or does not contain passwords dictionary")
 
     for conn_key in _connectors:
-        print("Validate "+conn_key)
         _connectors.get(conn_key).validate_config()
+
+

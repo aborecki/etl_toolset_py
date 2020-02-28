@@ -11,7 +11,7 @@ def get_url_suffix_run_like_opc(env):
     if env == 'FTST2':
         return "/view/PWC10/view/PWC10_FTST/view/PWC10_FTST2/job/PWC10_runlikeopc-FTST2-execute/"
 
-    raise Exception("env parameter not known.")
+    raise Exception(f"env {env} parameter not known.")
 
 
 def get_url_suffix_deploy(env, area):
@@ -30,7 +30,7 @@ def check_date_YYYYMMDD(date):
 
 def manual_confirm():
     answer = input(f"Are you sure Y/N:")
-    if answer != 'Y':
+    if answer.upper() != 'Y':
         raise Exception("Action canceled.")
 
 
@@ -63,6 +63,9 @@ class BECJenkinsConnector(JenkinsConnector):
     def bec_start_push_recon(self, date, wait_for_completition=True):
         check_date_YYYYMMDD(date)
         return self.bec_build_runlikeopc('FTST2', 'FBIXA980', date, wait_for_completition=wait_for_completition)
+
+    def bec_start_init(self, date, wait_for_completition=True):
+        return self.bec_build_runlikeopc(self.environment, '.MDWINI0', date, wait_for_completition=wait_for_completition)
 
     def bec_build_runlikeopc(self, opcjob, bankdag=None, wait_for_completition=True):
         return self.bec_build_runlikeopc(self, self.environement, opcjob, bankdag=None, wait_for_completition=wait_for_completition)

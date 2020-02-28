@@ -105,6 +105,7 @@ class HGProdConnector(Connector):
         return self.bestil_with_env(repository, tag, self.environment, wait_for_completion)
 
     def bestil_with_env(self, repo, tag, env, wait_for_completion=True):
+
         print("Logging in", end=" ")
         browser = self.login()
         print("DONE")

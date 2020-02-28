@@ -50,6 +50,7 @@ class DBConnector(Connector):
 
         self.db_dialect=self.db_dialect_class()
         self.DS=AttrDict(initializer=lambda _: self.load_db_sub_connectors() )
+        self._odbcconnection=None
 
         if self.load_db_connectors:
             self.load_db_sub_connectors()
@@ -97,8 +98,9 @@ class DBConnector(Connector):
             self.integrated_security)
 
     def get_odbc_connection(self):
-        pyodbc.connect(self.get_odbc_conn_string())
-
+         #if not self._odbcconnection:
+        return   pyodbc.connect(self.get_odbc_conn_string())
+        #return self._odbcconnection;
 
 
     def run_query_spark_dataframe(self, query,  registerTempTableName=None):
@@ -123,7 +125,9 @@ class DBConnector(Connector):
         return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None)
 
     def execute_statement(self, statement):
-        conn = pyodbc.connect(self.get_odbc_conn_string())
+        conn = self.get_odbc_connection()
+
+
         cursor = conn.cursor()
         cursor.execute(statement)
         res = []

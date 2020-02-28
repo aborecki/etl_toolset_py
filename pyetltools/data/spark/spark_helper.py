@@ -1,5 +1,6 @@
 from functools import reduce
 
+
 import pandas
 import pyspark
 from pyspark.sql.types import BooleanType, DateType, LongType, IntegerType, FloatType, StringType, StructField, \
@@ -55,12 +56,15 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
     common_cols = [x for x in common_cols if x not in exclude_columns]
     print("Common columns (without excluded):" + str(common_cols))
     print("Join cols:" + str(key_fields))
-    join_cond = [left_df[x] == right_df[x] for x in key_fields]
+    join_cond = [left_df[c] == right_df[c] for c in key_fields]
     if mode == 2:
         select_cols = key_fields
     if mode == 3:
         select_cols = common_cols
+
+
     join_res_df = left_df.select(select_cols).join(right_df.select(select_cols), join_cond, how="full")
+
     # F.when(df.age > 4, 1).when(df.age < 3, -1).otherwise(0)
     join_res_df = join_res_df.withColumn("left_missing",
                                          F.when(reduce(lambda a, b: a & b, [left_df[x].isNull() for x in key_fields]),
@@ -73,6 +77,8 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
                                                        [left_df[x].isNotNull() & right_df[x].isNotNull() for x in
                                                         key_fields]),
                                                 1).otherwise(0))
+    #for c in key_fields:
+    #    join_res_df=join_res_df.drop(right_df[c])
 
     content_cols = [x for x in select_cols if x not in key_fields]
     if len(include_columns) > 0:
@@ -134,6 +140,14 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
     print("Count of rows found in both datasets: " + str(both_cnt))
     if len(content_cols) > 0:
         print("Count of diffrent rows: " + str(diff_cnt))
+
+    # change names in columns to remove duplicates
+    join_res_df = join_res_df.select([left_df[c].alias("left_"+c) for c in dict.fromkeys([x for x in join_res_df.columns
+                                                                                          if x in left_df.columns])]+
+                                     [right_df[c].alias("right_"+c) for c in dict.fromkeys([x for x in join_res_df.columns if x in right_df.columns])]+
+                                     [join_res_df[c] for c in
+                                      [x for x in join_res_df.columns if x not in right_df.columns and x not in left_df.columns]]
+                                     )
 
     return join_res_df;
 

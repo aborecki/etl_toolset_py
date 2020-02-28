@@ -28,17 +28,17 @@ class JiraConnector(Connector):
         super().validate_config()
 
     def get_url(self, suffix):
-        return self.config.url.strip("/")+"/"+suffix.strip("/")
+        return self.url.strip("/")+"/"+suffix.strip("/")
 
     def get_headers(self):
-        return request_templates.get_authentication_headers()
+        return request_templates.get_authentication_headers(self.username, self.get_password())
 
     def request_get(self,url_suffix):
-        response = requests.post(self.get_url(url_suffix), headers=self.get_headers())
+        response = requests.get(self.get_url(url_suffix), headers=self.get_headers())
         try:
             response = json.loads(response.content)
         except Exception as e:
-            print("Cannot parse json. " + response)
+            print("Cannot parse json. " + str(response))
             raise e
         return response
 
@@ -52,12 +52,12 @@ class JiraConnector(Connector):
 
     def get_issue(self, issue_id) -> JiraIssue:
         logging.debug("get_issue:"+issue_id)
-        return JiraIssue.from_content(self.request_get_json(f"/issue/{issue_id}"))
+        return JiraIssue.from_content(self.request_get(f"/issue/{issue_id}"))
 
 
     def search_issues(self, jql_query):
         logging.debug("search_issues:" + jql_query)
-        return JiraIssue.from_search_result(self.request_get_json(f"/search?jql={jql_query}"))
+        return JiraIssue.from_search_result(self.request_get(f"/search?jql={jql_query}"))
 
     def create_subissue(self, project_key, issue_id, subissue_summary, subissue_description):
         data=request_templates.get_create_subissue_body_json(project_key, issue_id, subissue_summary, subissue_description)
