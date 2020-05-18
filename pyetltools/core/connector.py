@@ -1,8 +1,6 @@
-import copy
 import getpass
 import importlib
 import re
-import traceback
 import logging
 from abc import abstractmethod, ABCMeta
 
@@ -33,6 +31,8 @@ class Connector(metaclass=ABCMeta):
         else:
             return None
 
+    def __repr__(self):
+        return f"{self.__class__.__name__} - {self.key}"
 
 def set_password(key, password):
     passwords[key] = password
@@ -55,50 +55,35 @@ passwords = dict()
 connectors = AttrDict()
 _connectors=dict()
 
-def add(connector: Connector):
-    connector_key = connector.key
+
+
+def add(conn: Connector):
+    connector_key = conn.key
     keys = connector_key.split("/");
-    if len(keys) > 1:
-        group_name = keys[0]
-        key = keys[1]
+    curr_group=connectors
+    for group_name in keys[0:-1]:
         # add group name if not exists
-        if not group_name in connectors._data:
-            connectors._add_attr(group_name, AttrDict())
-        connectors._data[group_name]._add_attr(key, connector)
-    else:
-        key = keys[0]
-        connectors._add_attr(key, connector)
-    _connectors[connector_key]=connector
-    print("Connector added: " + str(type(connector).__name__) + " " + connector_key)
-    return connector
+        if not group_name in curr_group._data:
+            new_group= AttrDict()
+            curr_group._add_attr(group_name, new_group)
+            curr_group=new_group
+        else:
+            curr_group=curr_group._data[group_name]
+    curr_group._add_attr(keys[-1], conn)
+    _connectors[connector_key]=conn
+    #print("Connector added: " + str(type(connector).__name__) + " " + connector_key)
+    return conn
 
 
-def get(connector):
-    if isinstance(connector, Connector):
-        return connector
-    if connector not in _connectors:
-        raise Exception(f"Connector {connector} not found.")
-    return _connectors[connector]
+def get(conn):
+    if isinstance(conn, Connector):
+        return conn
+    if conn not in _connectors:
+        raise Exception(f"Connector {conn} not found.")
+    return _connectors[conn]
 
 
-def load_config():
-    logging.info(__name__ + ":__init__.py")
-    # trying to import pyetltools_config.py config-in-file
-
-    pyetltools_config_lib = importlib.util.find_spec("pyetltools_config")
-    found_config = pyetltools_config_lib is not None
-    if found_config:
-        import pyetltools_config
-    else:
-        print("Cannot import pyetltools_config.")
-
-    pyetltools_passwords_lib = importlib.util.find_spec("pyetltools_passwords")
-    found_passwords = pyetltools_config_lib is not None
-    if found_passwords:
-        import pyetltools_passwords
-    else:
-        print("pyetltools_passworimds module not found or does not contain passwords dictionary")
-
+def validate_config():
     for conn_key in _connectors:
         _connectors.get(conn_key).validate_config()
 

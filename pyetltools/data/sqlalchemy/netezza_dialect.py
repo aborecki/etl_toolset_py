@@ -13,17 +13,20 @@ import sqlalchemy.util as util
 import pyodbc
 import re
 from sqlalchemy.ext.compiler import compiles
-
+import sqlalchemy.types as types
 
 # pylint:disable=R0901,W0212
 
 
-class ST_GEOMETRY(sqltypes.Binary):
-    __visit_name__ = 'ST_GEOMETRY'
+class ST_GEOMETRY(types.UserDefinedType, types.Binary):
+    def get_col_spec(self, **kw):
+        return "ST_GEOMETRY"
 
 
-class BYTEINT(sqltypes.INTEGER):
-    __visit_name__ = 'BYTEINT'
+class BYTEINT(types.UserDefinedType):
+    def get_col_spec(self, **kw):
+        return "BYTEINT"
+
 
 
 class NVARCHAR(sqltypes.NVARCHAR):
@@ -38,19 +41,19 @@ class NVARCHAR(sqltypes.NVARCHAR):
             unicode_error='ignore')
 
 
-class OID(sqltypes.BigInteger):
-    '''System table only type'''
-    __visit_name__ = 'OID'
+class OID(types.UserDefinedType, sqltypes.BigInteger):
+    def get_col_spec(self, **kw):
+        return "OID"
 
 
 class NAME(NVARCHAR):
-    '''System table only type'''
-    __visit_name__ = 'NAME'
+    def get_col_spec(self, **kw):
+        return "NAME"
 
 
 class ABSTIME(sqltypes.TIME):
-    '''System table only type'''
-    __visit_name__ = 'ABSTIME'
+    def get_col_spec(self, **kw):
+        return "ABSTIME"
 
 
 # Weird types gleaned from _v_datatype
@@ -218,7 +221,7 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
         result = connection.execute(
             sql.text(
                 "select schema from _v_schema"
-                "ORDER BY schema"
+                " ORDER BY schema"
             ).columns(nspname=sqltypes.Unicode)
         )
         return [name for name, in result]
@@ -233,20 +236,22 @@ class NetezzaODBC(PyODBCConnector, PGDialect):
                    a.attcolleng as length,
                    a.format_type
             FROM _v_relation_column a
-            WHERE a.name = :tablename
+            WHERE a.name = :tablename and a.schema=:schema
             ORDER BY a.attnum
         """
 
         s = text(SQL_COLS,
-                 bindparams=[bindparam('tablename', type_=sqltypes.String)],
+                 bindparams=[bindparam('tablename', type_=sqltypes.String),
+                             bindparam('schema', type_=sqltypes.String)],
                  typemap={'name': NAME,
                           'typeid': sqltypes.Integer,
                           'nullable': sqltypes.Boolean,
                           'length': sqltypes.Integer,
                           'format_type': sqltypes.String,
                           'tablename': sqltypes.String,
+                          'schema': sqltypes.String
                           })
-        c = connection.execute(s, tablename=table_name)
+        c = connection.execute(s, tablename=table_name, schema=schema if schema is not None else self.default_schema_name)
         rows = c.fetchall()
         # format columns
         columns = []
@@ -399,4 +404,4 @@ def visit_create_table_as(element, compiler, **_kwargs):
 
 registry.register("netezza", "netezza_dialect", "NetezzaODBC")
 registry.register(
-    "netezza.pyodbc", "pyetltools.data.core.sqlalchemy.netezza_dialect", "NetezzaODBC")
+    "netezza.pyodbc", "pyetltools.data.sqlalchemy.netezza_dialect", "NetezzaODBC")

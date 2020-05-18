@@ -1,6 +1,6 @@
 #configuration files - may contain sensitive data
-pyetltools_passwords.py
-pyetltools_config.py
+bectools/pyetltools_passwords.py
+bectools/pyetltools_config.py
 
 notebooks/
 spark-warehouse/

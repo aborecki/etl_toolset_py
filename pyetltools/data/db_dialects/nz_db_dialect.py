@@ -1,3 +1,5 @@
+import urllib
+
 from pyetltools.data.db_dialect import DBDialect
 
 class NZDBDialect(DBDialect):
@@ -21,3 +23,11 @@ class NZDBDialect(DBDialect):
 
     def get_sqlalchemy_dialect(self):
         return "netezza"
+
+    def get_sqlalchemy_driver(self):
+        return "pyodbc"
+
+    def get_sqlalchemy_conn_string(self, odbc_conn_string, jdbc_conn_string):
+        return '{}+{}:///?odbc_connect={}'.format(self.get_sqlalchemy_dialect(),
+                                                      self.get_sqlalchemy_driver(),
+                                                      urllib.parse.quote_plus( odbc_conn_string))

@@ -17,7 +17,7 @@ def df_to_csv(df, output_dir):
     df.coalesce(1).write.option("header", "true").option("sep", ",").mode("overwrite").csv(output_dir)
 
 
-def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], include_columns=[], mode=1):
+def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], include_columns=[], mode=1, add_diff_cont_cols=False):
     if 1 > mode > 3:
         print("Allowed modes 1 (counts only), 2 (only counts for content), 3 (full - content)")
 
@@ -101,14 +101,16 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
             F.when(is_float_udf(left_df[col]), left_df[col].cast("float")).otherwise(left_df[col].cast("string"))
             != F.when(is_float_udf(right_df[col]), right_df[col].cast("float")).otherwise(right_df[col].cast("string")),
             1).otherwise(0))
-        join_res_df = join_res_df.withColumn("diff_cont_" + col, F.when(
+        if add_diff_cont_cols:
+            join_res_df = join_res_df.withColumn("diff_cont_" + col, F.when(
             F.when(is_float_udf(left_df[col]), left_df[col].cast("float")).otherwise(left_df[col].cast("string"))
             != F.when(is_float_udf(right_df[col]), right_df[col].cast("float")).otherwise(right_df[col].cast("string")),
             F.concat(left_df[col], F.lit("|||"), right_df[col])).otherwise(""))
     if (len(content_cols) > 0):
         join_res_df = join_res_df.withColumn("diff_cnt", reduce(lambda a, b: a + b,
                                                                 [join_res_df["diff_" + x] for x in content_cols]))
-        join_res_df = join_res_df.withColumn("diff_cont", F.when(reduce(lambda a, b: a + b,
+        if add_diff_cont_cols:
+            join_res_df = join_res_df.withColumn("diff_cont", F.when(reduce(lambda a, b: a + b,
                                                                         [join_res_df["diff_" + x] for x in
                                                                          content_cols]) == 0, 0).otherwise(1))
 
@@ -116,11 +118,12 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
     # join_res_df.show();
 
     if (len(content_cols) > 0):
-        agg_df = join_res_df.select(["left_missing", "right_missing", "both", "diff_cont"]).agg(
+        cols=["left_missing", "right_missing", "both", "diff_cnt"]
+        agg_df = join_res_df.select(cols).agg(
             F.sum("left_missing").alias("left_missing"),
             F.sum("right_missing").alias("right_missing"),
             F.sum("both").alias("both"),
-            F.sum("diff_cont").alias("diffrent_rows_cnt"))
+            F.sum("diff_cnt").alias("diffrent_rows_cnt"))
     else:
         agg_df = join_res_df.select(["left_missing", "right_missing", "both"]).agg(
             F.sum("left_missing").alias("left_missing"),
@@ -195,6 +198,7 @@ def pandas_to_spark(spark, pandas_df):
     try:
         return spark.createDataFrame(pandas_df).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
     except:
+        print("PD2SparkDF conv failed on default schema inference. Using schema override.")
         return spark.createDataFrame(pandas_df, p_schema).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
 
 

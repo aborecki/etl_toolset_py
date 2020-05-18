@@ -11,6 +11,12 @@ class AttrDict(object):
     def get(self, key):
         return self.__getattr__(key)
 
+    def __repr__(self):
+        ret=""
+        for k,v in self._data.items():
+            ret+= "\n".join([i for i in repr(v).splitlines()])+"\n"
+        return ret
+
     def keys(self):
         return self._data.keys()
 

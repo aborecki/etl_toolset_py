@@ -1,35 +1,35 @@
 import os
 import re
 from functools import reduce
+import winsound
 
-from pyetltools.bec.data.sql import recon
-from pyetltools.bec.hgrepo.hgprod_conector import HGProdConnector
-from pyetltools.bec.jenkins.bec_jenkins_connector import BECJenkinsConnector
-from pyetltools.bec.model.entities import ReleaseStatusWorkflow, ReleaseStatusTable
+
+from bectools.bec.data.sql import recon
+from bectools.bec.enums import ResourceType, Env
 from pyetltools.core import connector
 from pyetltools.core.cmd import Cmd
 from pyetltools.core.connector import Connector
-import pyetltools.bec.data.sql.meta as sql_meta
-import pyetltools.bec.data.sql.recon as sql_recon
-from pyetltools.data.db_connector import DBConnector
-from pyetltools.infa.infa_cmd_connector import InfaCmdConnector
-from pyetltools.infa.infa_connector import InfaConnector
-from pyetltools.jenkins.jenkins_connector import JenkinsConnector
-
+import bectools.bec.data.sql.meta as sql_meta
+import bectools.bec.data.sql.recon as sql_recon
+from pyetltools.core.env import EnvManager
 
 def input_YN( prompt):
     ans = None
     while ans not in ['Y', 'N']:
         ans = input(prompt).upper()
     return ans == 'Y'
-    return ans == 'Y'
+
+
+
+
+
 
 class BECConnector(Connector):
 
-    def __init__(self, key, infa_repo_db_connectors={}, infa_connectors={}, hgprod_connectors={}, jenkins_connectors={}, hg_repos_path=None):
+    def __init__(self, key, env_manager: EnvManager, hg_repository_path=None):
         super().__init__(key)
-        self.hg_repos_path=hg_repos_path
-        self.env_manager = BECConnector.EnvManager(infa_repo_db_connectors, infa_connectors, hgprod_connectors, jenkins_connectors)
+        self.hg_repos_path=hg_repository_path
+        self.env_manager = env_manager
         self.recon = self.Recon(self)
         self.deployment = self.Deployment(self)
 
@@ -37,55 +37,27 @@ class BECConnector(Connector):
         super().validate_config()
         self.env_manager.validate_config()
 
-    class EnvManager:
 
-        def __init__(self, infa_repo_db_connectors: dict = None, infa_connectors: dict = None,
-                     hgprod_connectors: dict = None, jenkins_connectors:dict = None, ):
-            self.infa_repo_db_connectors = infa_repo_db_connectors
-            self.infa_connectors = infa_connectors
-            self.hgprod_connectors = hgprod_connectors
-            self.jenkins_connectors=jenkins_connectors
-
-        def validate_config(self):
-            for conn in self.infa_repo_db_connectors.values():
-                connector.get(conn)  # try to get connector
-            for conn in self.infa_connectors.values():
-                connector.get(conn)  # try to get connector
-            for conn in self.hgprod_connectors.values():
-                connector.get(conn)  # try to get connector
-            for conn in self.jenkins_connectors.values():
-                connector.get(conn)  # try to get connector
-
-        def get_db_connector_for_env(self, env) -> DBConnector:
-            assert env in self.infa_repo_db_connectors, f"Infa repo DB connector for environment {env} not found "
-            return connector.get(self.infa_repo_db_connectors[env])
-
-        def get_infa_connector_for_env(self, env) -> InfaConnector:
-            assert env in self.infa_connectors, f"Infa connector for environment {env} not found "
-            return connector.get(self.infa_connectors[env])
-
-        def get_hgprod_connector_for_env(self, env) -> HGProdConnector:
-            assert env in self.hgprod_connectors, f"HGProd connector for environment {env} not found "
-            return connector.get(self.hgprod_connectors[env])
-
-        def get_jenkins_connector_for_env(self, env) -> BECJenkinsConnector:
-            assert env in self.jenkins_connectors, f"Jenkins connector for environment {env} not found "
-            return connector.get(self.jenkins_connectors[env])
 
     class Recon:
         def __init__(self, connector):
             self.parent_connector=connector
 
         def start_recon(self, date):
-            self.parent_connector.env_manager.get_jenkins_connector_for_env("FTST2").bec_start_recon(date)
+            self.parent_connector.env_manager.get_connector(ResourceType.JENKINS, Env.FTST2).bec_start_recon(date)
 
         def start_push_recon(self, date):
-            self.parent_connector.env_manager.get_jenkins_connector_for_env("FTST2").bec_start_push_recon(date)
+            self.parent_connector.env_manager.get_connector(ResourceType.JENKINS, Env.FTST2).bec_start_push_recon(date)
 
 
     class Deployment:
         def __init__(self, connector):
             self.parent_connector=connector
+
+
+        def get_last_created_label(self, label_prefix):
+            infa_connector = self.parent_connector.env_manager.get_connector(ResourceType.INFA, Env.DEV)
+            return infa_connector.get_last_created_label(label_prefix)
 
         def hg_deploy_file_set_label(self, path, label, modify_cloning=False, clonevar=True, clonelist=True):
             with open(path, 'r') as f:
@@ -159,8 +131,9 @@ class BECConnector(Connector):
             hg_command.run("pull")
             hg_command.run("add", "PWC_deploy.txt")
             hg_command.run("commit", "-m",label, "PWC_deploy.txt")
-            id_out,_,_= hg_command.run("id","-i", "--debug")
-            changeset_id=id_out.strip().rstrip("+")
+            id_res= hg_command.run("id","-i", "--debug")
+            id_stdout=id_res.stdout.decode("latin-1")
+            changeset_id=id_stdout.strip().rstrip("+")
             print("Last changeset"+changeset_id)
             self.add_tag_to_commit(repository, changeset_id, tag)
             hg_command.run("diff", ".hgtags")
@@ -173,20 +146,24 @@ class BECConnector(Connector):
                 return False
             hg_command.run("push")
 
-        def deploy_infa_by_label(self, target_env, label, confirm_all=False):
-            infa_connector =  self.parent_connector.env_manager.get_infa_connector_for_env("DEV")
-            hgprod_connector = self.parent_connector.env_manager.get_hgprod_connector_for_env(target_env)
-            jenkins_connector = self.parent_connector.env_manager.get_jenkins_connector_for_env(target_env)
+        def deploy_infa_by_label(self, target_env, label, confirm_all_safe=False, confirm_do_not_modify_pwc_deploy=False):
+            # confirm_all_safe - automatically answer Y to all operations which are "safe"
+
+            target_env=Env[target_env]
+
+            infa_connector =  self.parent_connector.env_manager.get_connector(ResourceType.INFA, Env.DEV)
+            hgprod_connector = self.parent_connector.env_manager.get_connector(ResourceType.HGPROD, target_env)
+            jenkins_connector = self.parent_connector.env_manager.get_connector(ResourceType.JENKINS,  target_env)
 
             assert hgprod_connector.environment, f"HGProd connector for env {target_env} has not environment configured."
 
             if not infa_connector.check_label_exists(label):
                 print(f"Label {label} does not exist.")
-                if confirm_all or input_YN(f"Do you want to create label {label}?"):
+                if  input_YN(f"Do you want to create label {label}?"):
                     infa_connector.create_label(label)
             else:
                 print(f"Label {label} exists.")
-                if confirm_all or input_YN(f"Do you want to re-deploy label {label} to {target_env}?") :
+                if confirm_all_safe or input_YN(f"Do you want to re-deploy label {label} to {target_env}?") :
                     pass
                 else:
                     print("Done.")
@@ -195,14 +172,14 @@ class BECConnector(Connector):
 
             if not infa_connector.check_query_exists(label):
                 print(f"Depoyment query {label} does not exist.")
-                if confirm_all or input_YN(f"Do you want to create deployment query {label}?") :
+                if  input_YN(f"Do you want to create deployment query {label}?") :
                     infa_connector.create_deployment_query(label)
                 else:
                     print("Nothing to do. Done.")
                     return False
             else:
                 print(f"Deployment query {label} exists.")
-                if confirm_all or input_YN(f"Do you want to reuse query {label} to deploy to {target_env}?") :
+                if confirm_all_safe or input_YN(f"Do you want to reuse query {label} to deploy to {target_env}?") :
                     pass
                 else:
                     print("Nothing to do. Done.")
@@ -224,11 +201,8 @@ class BECConnector(Connector):
                 print("All objects are checked in.")
 
 
-
-
-
             print(labeled_obj)
-            if confirm_all or input_YN(f"Do you want to deploy above objects?") :
+            if confirm_all_safe or input_YN(f"Do you want to deploy above objects?") :
                 pass
             else:
                 print("Done.")
@@ -239,7 +213,7 @@ class BECConnector(Connector):
             tag = "PWC_" + label
             #Hg repos
 
-            if input_YN(f"Do you want to change PWC_deploy.txt file"):
+            if not confirm_do_not_modify_pwc_deploy and input_YN(f"Do you want to change PWC_deploy.txt file"):
                 self.hg_deploy_file_change_commit(repo, label, tag)
 
 
@@ -248,7 +222,7 @@ class BECConnector(Connector):
 
             jenkins_area=area # MDW, RAP etc
 
-            if confirm_all or input_YN(f"Do you want to bestil tag {tag} on hgprod environment "
+            if confirm_all_safe or input_YN(f"Do you want to bestil tag {tag} on hgprod environment "
                                  f"{hgprod_connector.environment} and hgprod repository {repo}?") :
                 pass
             else:
@@ -258,32 +232,61 @@ class BECConnector(Connector):
 
             hgprod_connector.bestil(repo, tag)
 
-            if confirm_all or input_YN(f"Do you want to start jenkins build for environment {jenkins_connector.environment} and area {jenkins_area}?"):
+            if confirm_all_safe or input_YN(f"Do you want to start jenkins build for environment {jenkins_connector.environment} and area {jenkins_area}?"):
                 pass
             else:
                 print("Done.")
                 return False;
 
 
-            jenkins_connector.bestil(jenkins_area)
+            ret, a= jenkins_connector.deploy_project(jenkins_area)
+            return ret
+
+
+        def deploy_infa_by_labels(self, target_envs, label, confirm_all_safe=False, confirm_do_not_modify_pwc_deploy=False):
+
+            for env in target_envs:
+                ret=self.deploy_infa_by_label(env, label, confirm_all_safe,
+                                                          confirm_do_not_modify_pwc_deploy)
+                if not ret:
+                    self.play_fail_sound()
+                    return False
+
+            self.play_success_sound()
+
+        def tone(self, freq, length, msg):
+            winsound.Beep(int(min(max(freq, 28), 32766)), int(length))
+
+        def play_success_sound(self):
+            self.tone(523, 231.480833333, "Playing Tone: 523 = C5 minus 1 cents")
+            self.tone(440, 231.480833333, "Playing Tone: 440 = A4 plus 0 cents")
+            self.tone(391, 231.480833333, "Playing Tone: 391 = G4 minus 4 cents")
+            self.tone(587, 231.480833333, "Playing Tone: 587 = D5 minus 1 cents")
+            self.tone(783, 231.480833333, "Playing Tone: 783 = G5 minus 2 cents")
+
+        def play_fail_sound(self):
+            frequency = 2500  # Set Frequency To 2500 Hertz
+            duration = 100  # Set Duration To 1000 ms == 1 second
+            for i in range(5):
+                winsound.Beep(frequency, duration)
 
     # def get_ftst2_db_connector(self):
     #     return  connector.get("DB/NZFTST2").set_data_source("MMDB")
 
-    def get_bank_koncern_map(self):
+    def get_bank_koncern_map_pd(self):
         sql= sql_meta.sql_ftst2_bank_koncern()
         print("SQL:\n"+sql)
-        return self.env_manager.env_manager.get_db_connector_for_env("FTST2").run_query_spark_dataframe(sql)
+        return self.env_manager.get_connector(ResourceType.DB,Env.FTST2,"NZ").run_query_pandas_dataframe(sql)
 
     def recon_add_aggregate_foreign_key(self, table_name, column_name):
          sql = sql_recon.ftst2_insert_aggregate_foreign_key(table_name, column_name)
          print("SQL:\n"+sql)
-         return self.env_manager.get_db_connector_for_env("FTST2").execute_statement(sql)
+         return self.env_manager.get_connector(ResourceType.DB,Env.FTST2,"NZ").with_data_source("MMDB").execute_statement(sql)
     #
     def recon_remove_aggregated_results_for_table_name(self, table_name, date):
          sql = recon.ftst2_delete_recon_results_for_table(table_name, date)
          print("SQL:\n" + sql)
-         return connector.get("DB/NZFTST2").clone().set_data_source("MMDB").execute_statement(sql)
+         return connector.get("DB/FTST2/NZ").with_data_source("MMDB").execute_statement(sql)
     #
     # def dr_prod_meta_dr_restore_log(self, table_name, date):
     #     sql = sql_meta.prod_meta_dr_restore_log(date)

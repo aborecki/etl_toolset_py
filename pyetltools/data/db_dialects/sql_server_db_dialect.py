@@ -1,3 +1,4 @@
+import urllib
 
 from pyetltools.data.db_dialect import DBDialect
 
@@ -13,6 +14,16 @@ class SQLServerDBDialect(DBDialect):
     def get_sql_list_databases(self):
         return "SELECT name FROM sys.databases"
 
+
+    def get_sql_list_columns(self, table_name):
+        return f"""
+            SELECT *
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME ='{table_name}'
+            order by ordinal_position
+        """
+
+
     def get_select(self, limit_rows, table_name, where):
         return "select limit {limit} * from {table_name} where {where}"
 
@@ -21,6 +32,14 @@ class SQLServerDBDialect(DBDialect):
 
     def get_sqlalchemy_dialect(self):
         return "mssql"
+
+    def get_sqlalchemy_driver(self):
+        return "pyodbc"
+
+    def get_sqlalchemy_conn_string(self, odbc_conn_string, jdbc_conn_string):
+        return '{}+{}:///?odbc_connect={}'.format(self.get_sqlalchemy_dialect(),
+                                                      self.get_sqlalchemy_driver(),
+                                                      urllib.parse.quote_plus( odbc_conn_string))
 
     def get_jdbc_driver(self):
         return "com.microsoft.sqlserver.jdbc.SQLServerDriver";

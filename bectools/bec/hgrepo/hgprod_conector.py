@@ -23,11 +23,12 @@ class HGProdConnector(Connector):
 
 
     def clone(self):
-        return copy.copy(self)
+        return HGProdConnector(self.key, self.url, self.username, self.password, self.environment)
 
-    def set_environment(self, env):
-        self.environment=env
-        return self
+    def with_environment(self, env):
+        cp=self.clone()
+        cp.environment=env
+        return cp
 
     LOGIN_PAGE = "accounts/login/?next=/"
     REPOS_PAGE = "bestsys/sel_repo"

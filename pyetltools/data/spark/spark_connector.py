@@ -19,11 +19,12 @@ class SparkConnector(Connector):
 
     def get_spark_session(self):
         if not self._spark_session:
-            self._spark_session = get_spark_session(self.options)
+            self._spark_session = get_spark_session(self.master, self.options)
         return self._spark_session
 
-    def __init__(self, key, options=None):
+    def __init__(self, key, master, options=None):
         super().__init__(key=key)
+        self.master=master
         self.options = options
         self._sql = None
         self._spark_session = None
@@ -33,16 +34,17 @@ class SparkConnector(Connector):
         super().validate_config()
 
 
-    def get_df_from_jdbc(self, jdbc_conn_string, query_or_table, driver, username, password):
+    def get_df_from_jdbc(self, jdbc_conn_string, query_or_table, driver, username, get_pasword):
         cf = self.get_spark_session().read.format("jdbc") \
             .option("url", jdbc_conn_string) \
             .option("dbtable", "(" + query_or_table + ") x") \
             .option("driver", driver)
-
         if username:
             cf = cf.option("user", username)
-        if password:
-            cf = cf.option("password", password)
+        if get_pasword:
+            password=get_pasword()
+            if password:
+                cf = cf.option("password", password)
         df = cf.load()
 
         df.persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
@@ -103,9 +105,8 @@ def df_to_csv(dir):
     spark_helper.df_to_csv(dir)
 
 
-def get_spark_session(spark_params={}):
+def get_spark_session(master, spark_params={}):
     app_name = ""
-    master = "local[*]"
     conf = SparkConf() \
         .setAppName(app_name) \
         .setMaster(master)

@@ -33,6 +33,7 @@ class InfaCmdConnector(Connector):
                               "-s", self.security_domain, "-n", self.username, "-x", self.get_password())
 
     def run_pmrep_export_workflow(self, workflow, folder, output_file):
+        self.run_pmrep_connect()
         return self.run_pmrep("objectexport", "-n", workflow, "-o", "workflow", "-f", folder, "-m", "-s", "-b", "-r",
                               "-u", output_file)
 
@@ -50,27 +51,33 @@ class InfaCmdConnector(Connector):
         return self.pmrep_cmd.run(*params)
 
     def run_pmrep_create_label(self, label, comment):
+        self.run_pmrep_connect()
         if comment:
             return self.run_pmrep("createlabel", "-a", label, "-c", comment)
         else:
             return self.run_pmrep("createlabel", "-a", label)
 
     def run_pmrep_create_query(self, query_name, query_type, expression):
+        self.run_pmrep_connect()
         return self.run_pmrep("createquery", "-n", query_name, "-t", query_type, "-e", expression)
 
     def run_pmrep_execute_query(self, query_name,sep=" "):
+        self.run_pmrep_connect()
         return self.run_pmrep("executequery", "-q", query_name,"-b","-c",sep)
 
 
     def run_pmrep_find_checkout(self, sep=" "):
         #-u all users
         #-b verbose
+        self.run_pmrep_connect()
         return self.run_pmrep("findcheckout","-u","-b","-c",sep)
 
 
     def run_pmrep_delete_query(self, query_name, query_type):
+        self.run_pmrep_connect()
         return self.run_pmrep("deletequery", "-n", query_name,"-t",query_type,"-f")
 
     def convert_log_bin_to_xml(self, xml_file_path):
+        self.run_pmrep_connect()
         res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{xml_file_path}")
 

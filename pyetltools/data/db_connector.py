@@ -9,14 +9,16 @@ from pyetltools.core.attr_dict import AttrDict
 from pyetltools.core.connector import Connector
 from pyetltools.data.spark import spark_helper
 from sys import stderr
-import sqlalchemy as sa
-import urllib.parse
-from sqlalchemy.orm import sessionmaker
+import string
+
+
 
 
 class DBConnector(Connector):
     def __init__(self,
                  key=None,
+                 jdbc_conn_string=None,
+                 odbc_conn_string=None,
                  host=None,
                  port=None,
                  dsn=None,
@@ -33,6 +35,8 @@ class DBConnector(Connector):
                  ):
         super().__init__(key=key)
         assert key, "Config key cannot be None"
+        self.jdbc_conn_string = jdbc_conn_string
+        self.odbc_conn_string = odbc_conn_string
         self.host = host
         self.port = port
         self.dsn = dsn
@@ -47,10 +51,12 @@ class DBConnector(Connector):
         self.spark_connector = spark_connector
         self.db_dialect_class = db_dialect_class
 
-
         self.db_dialect=self.db_dialect_class()
         self.DS=AttrDict(initializer=lambda _: self.load_db_sub_connectors() )
         self._odbcconnection=None
+        from pyetltools.data.sql_alchemy_connector import SqlAlchemyConnector
+
+        self.sql_alchemy_connector= SqlAlchemyConnector(self)
 
         if self.load_db_connectors:
             self.load_db_sub_connectors()
@@ -62,12 +68,28 @@ class DBConnector(Connector):
     def get_spark_connector(self):
         return connector.get(self.spark_connector)
 
-    def set_data_source(self, data_source):
-        self.data_source=data_source
-        return self
+    def with_data_source(self, data_source):
+        cp=self.clone()
+        cp.data_source=data_source
+        return cp
 
     def clone(self):
-        return copy.copy(self)
+        return DBConnector(key=self.key,
+                 jdbc_conn_string=self.jdbc_conn_string,
+                 odbc_conn_string=self.odbc_conn_string,
+                 host=self.host,
+                 port=self.port,
+                 dsn=self.dsn,
+                 username=self.username,
+                 password=self.password,
+                 data_source=self.data_source,
+                 odbc_driver=self.odbc_driver,
+                 integrated_security=self.integrated_security,
+                 supports_jdbc=self.supports_jdbc,
+                 supports_odbc=self.supports_odbc,
+                 load_db_connectors=self.load_db_connectors,
+                 spark_connector=self.spark_connector,
+                 db_dialect_class=self.db_dialect_class)
 
     def get_password(self):
         if self.integrated_security:
@@ -75,7 +97,13 @@ class DBConnector(Connector):
         else:
             return super().get_password()
 
+    def get_sqlalchemy_conn_string(self):
+        return self.db_dialect.get_sqlalchemy_conn_string(self.get_odbc_conn_string(), self.get_jdbc_conn_string())
+
+
     def get_odbc_conn_string(self):
+        if self.odbc_conn_string:
+            return self.odbc_conn_string
         return self.db_dialect.get_odbc_conn_string(
             self.dsn,
             self.host,
@@ -87,6 +115,8 @@ class DBConnector(Connector):
             self.integrated_security)
 
     def get_jdbc_conn_string(self):
+        if self.jdbc_conn_string:
+            return self.jdbc_conn_string
         return self.db_dialect.get_jdbc_conn_string(
             self.dsn,
             self.host,
@@ -102,9 +132,9 @@ class DBConnector(Connector):
         return   pyodbc.connect(self.get_odbc_conn_string())
         #return self._odbcconnection;
 
-
     def run_query_spark_dataframe(self, query,  registerTempTableName=None):
         if self.supports_jdbc:
+            print("Executing query (JDBC):"+query)
             ret=self.get_spark_connector().get_df_from_jdbc(self.get_jdbc_conn_string(),
                                                       query,
                                                       self.db_dialect.get_jdbc_driver(),
@@ -112,10 +142,14 @@ class DBConnector(Connector):
                                                       self.get_password)
         else:
             print("Warning: conversion from panadas df to spark needed. Can be slow.")
+            print("Executing query (ODBC):" + query)
             pdf = self.run_query_pandas_dataframe(query)
             is_empty = pdf.empty
+            ret=None
             if not is_empty:
                 ret = spark_helper.pandas_to_spark(self.get_spark_connector().get_spark_session(), pdf)
+            else:
+                print("No data returned.")
         if registerTempTableName is not None:
             ret.registerTempTable(registerTempTableName)
         return ret
@@ -148,48 +182,6 @@ class DBConnector(Connector):
                 continue
         return res;
 
-    def sa_get_engine(self):
-        con_str = self.db_dialect.get_sqlalchemy_conn_string()
-        return sa.create_engine(con_str)
-
-    def sa_connect(self):
-        return self.sa_get_engine().connect();
-
-    def sa_get_session_class(self):
-        return sessionmaker(bind=self.sa_get_engine())
-
-    def sa_get_session(self):
-        # create object of the sqlalchemy class
-        return self.sa_get_session_class()()
-
-    def sa_get_metadata_for_table(self, table):
-        from sqlalchemy import MetaData
-        metadata = MetaData(bind=self.sa_get_engine(), reflect=False)
-        schema_table_split=table.split(".")
-        # take last part as tablename and part before as schema
-        schema=None
-        _table = table
-        if len(schema_table_split)>1:
-            _table=schema_table_split[-1]
-            _schema=schema_table_split[-2]
-
-        metadata.reflect(only=[_table], schema=_schema)
-        return metadata.tables[table]
-
-
-    def sa_helper_print_object_template(self, table):
-        table_meta_data=self.sa_get_metadata_for_table(table)
-        ret = []
-        for i in table_meta_data.columns:
-            x = repr(i)
-            ss = x.split(",")
-            ret.append(i.name.lower() + "= Column(" + ss[1] + ")")
-        print("\n".join(ret))
-
-        ret = []
-        for i in table_meta_data.columns:
-            ret.append("'" + i.name.lower() + "'")
-        print("__ordering=[" + ",".join(ret) + "]")
 
     def get_databases(self):
         ret = self.run_query_pandas_dataframe(self.db_dialect.get_sql_list_databases())
@@ -208,13 +200,12 @@ class DBConnector(Connector):
         return self.run_query_pandas_dataframe(self.db_dialect.get_sql_list_columns(table_name))
 
     def get_objects_for_databases(self, databases):
-        orig_ds = self.data_source
         ret = None
         for db in databases:
             try:
                 print("Retrieving objects from: " + db)
-                self.set_data_source(db)
-                ret_tmp = self.run_query_pandas_dataframe(self.db_dialect.get_sql_list_objects())
+                ds=self.with_data_source(db)
+                ret_tmp = ds.run_query_pandas_dataframe(self.db_dialect.get_sql_list_objects())
                 ret_tmp["DATABASE_NAME"] = db
                 if ret is None:
                     ret = ret_tmp
@@ -223,7 +214,6 @@ class DBConnector(Connector):
             except Exception as e:
 
                 print(e, file=stderr)
-        self.set_data_source(orig_ds)
         return ret;
 
     def get_object_for_databases_single_query(self, databases):
@@ -234,7 +224,7 @@ class DBConnector(Connector):
         ret={}
         for db in self.get_databases():
 
-            new_conn = self.clone().set_data_source(db)
+            new_conn = self.with_data_source(db)
             new_conn.load_db_connectors=False
             ret[db] = new_conn
         return ret

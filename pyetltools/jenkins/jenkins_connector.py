@@ -14,6 +14,7 @@ class JenkinsConnector(Connector):
         super().__init__(key=key, password=password)
         self.url = url
         self.username = username
+        requests.packages.urllib3.disable_warnings()
 
     def validate_config(self):
         super().validate_config()
@@ -59,10 +60,10 @@ class JenkinsConnector(Connector):
         return result == "SUCCESS", result
 
     def request_post(self, url, data=None):
-        return requests.post(url, auth=self.get_auth())
+        return requests.post(url, auth=self.get_auth(),  verify=False)
 
     def request_get(self, url, data=None):
-        return requests.get(url, auth=self.get_auth())
+        return requests.get(url, auth=self.get_auth(), verify=False)
 
     def get_auth(self):
         return self.username, self.get_password()

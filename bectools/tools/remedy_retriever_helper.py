@@ -8,6 +8,3 @@ url=r"https://remedy.intra.bec.dk/arsys/servlet/ViewFormServlet?form=CHG%3AInfra
 print("\n".join([cr+" "+url.replace("{cr}", cr) for cr in crs]))
 
 
-
-CreateTable_query = "Create Table my table(a string, b string, c double)"
-_.sql(CreateTable_query)

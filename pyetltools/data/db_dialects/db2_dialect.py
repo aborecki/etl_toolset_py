@@ -1,8 +1,11 @@
+import urllib
+
 from pyetltools.data.db_dialect import DBDialect
+
 
 class DB2DBDialect(DBDialect):
     def get_sql_list_objects(self):
-        raise NotImplemented()
+        return "select * from SYSIBM.SYSTABLES"
 
     def get_sql_list_databases(self):
         raise NotImplemented()
@@ -16,13 +19,29 @@ class DB2DBDialect(DBDialect):
     def get_jdbc_subprotocol(self):
         return "db2"
 
-    def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
+    def get_sqlalchemy_dialect(self):
+        return "db2"
 
-        ret=""
+    def get_sqlalchemy_driver(self):
+        return "pyodbc"
+
+    #def get_sqlalchemy_conn_string(self, odbc_conn_string, jdbc_conn_string):
+    #    return '{}+{}://{}'.format(self.get_sqlalchemy_dialect(),
+    #                                              self.get_sqlalchemy_driver(),
+    #                                              jdbc_conn_string[jdbc_conn_string.find("//")+2:])
+
+    def get_sqlalchemy_conn_string(self, odbc_conn_string, jdbc_conn_string):
+        return '{}+{}:///?odbc_connect={}'.format(self.get_sqlalchemy_dialect(),
+                                                      self.get_sqlalchemy_driver(),
+                                                      urllib.parse.quote_plus( odbc_conn_string))
+
+    def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver,
+                             integrated_security):
+        ret = ""
         if dsn is not None:
-            ret = ret+f"DSN={dsn};"
+            ret = ret + f"DSN={dsn};"
         if data_source is not None:
-            ret = ret+f"DBALIAS={data_source};"
+            ret = ret + f"DBALIAS={data_source};"
         if odbc_driver is not None:
             ret = ret + f"Driver={{{odbc_driver}}};"
         if integrated_security:
@@ -32,13 +51,13 @@ class DB2DBDialect(DBDialect):
             ret = ret + f"Uid={username};"
         return ret
 
-
-    # constructs jdbc string: jdbc:sqlserver://pd0240\pdsql0240:1521;databaseName={database};integratedSecurity=true
-    def get_jdbc_conn_string(self):
+    def get_jdbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver,
+                             integrated_security):
+        # jdbc:db2://DB2Connect.bec.dk:50000/CD99
         ret = "jdbc:" + self.get_jdbc_subprotocol() + "://"
-        ret = ret + self.host
-        ret = ret+":" + str(self.port)
-        if self.data_source is not None:
-            ret = ret+f"/{self.data_source}"
-        return ret
+        ret = ret + host
+        ret = ret + ":" + str(port)
 
+        if data_source is not None:
+            ret = ret + f"/{data_source}"
+        return ret

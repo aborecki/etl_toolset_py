@@ -7,19 +7,16 @@ class DBDialect:
 
     @abstractmethod
     def get_jdbc_subprotocol(self):
-        raise NotImplemented()
+        pass
 
     @abstractmethod
     def get_jdbc_conn_string(self):
-        raise NotImplemented()
+        pass
 
-    def get_sqlalchemy_conn_string(self):
-        return '{}+pyodbc:///?odbc_connect={}'.format(self.get_sqlalchemy_dialect(),
-                                                      urllib.parse.quote_plus(self.get_odbc_conn_string()))
 
     @abstractmethod
     def get_jdbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
-        raise NotImplemented()
+        pass
 
     # constructs odbc connection string in the form DSN=NZFTST2;DATABASE={database};UID={username}
     def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
@@ -42,12 +39,12 @@ class DBDialect:
 
     @abstractmethod
     def get_sql_list_objects(self):
-        raise NotImplemented()
+        pass
 
     @abstractmethod
     def get_sql_list_databases(self):
-        raise NotImplemented()
+        pass
 
     @abstractmethod
     def get_select(self, limit_rows, table_name, where):
-        raise NotImplemented()
+        pass

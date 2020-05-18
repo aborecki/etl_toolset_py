@@ -13,7 +13,7 @@ def sql_pwc_rep_prod_BEC_TASK_INST_RUN(where=[], limit_rows=None):
 
     return build_query("[D00000PD10_PWC_REP_PROD].[dbo].[BEC_TASK_INST_RUN]",where, limit_rows)
 
-def sql_pwc_rep_prod_REP_WFLOW_RUN_INST(where=[], limit_rows=None):
+def sql_pwc_rep_ftst2_REP_WFLOW_RUN_INST(where=[], limit_rows=None):
     return build_query("[D00000TD10_PWC_REP_FTST2].[dbo].[REP_WFLOW_RUN_INST]", where, limit_rows)
 
 

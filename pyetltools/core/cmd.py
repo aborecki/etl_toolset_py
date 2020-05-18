@@ -47,5 +47,5 @@ class Cmd():
         print("RESULT:")
         print(res.returncode)
         if res.returncode != 0:
-            raise Exception("Command failed with error code:"+res.returncode)
+            raise Exception("Command failed with error code:"+str(res.returncode))
         return res

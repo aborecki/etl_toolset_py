@@ -41,19 +41,21 @@ class BECJenkinsConnector(JenkinsConnector):
         self.environment=environment
 
     def clone(self):
-        return copy.copy(self)
+        cp=BECJenkinsConnector(self.key, self.url, self.username, self.password, self.environment)
+        return cp
 
-    def set_environment(self, environment):
-        self.environment=environment
-        return self
+    def with_environment(self, environment):
+        cp=self.clone()
+        cp.environment=environment
+        return cp
 
     def validate_config(self):
         super().validate_config()
 
-    def bestil(self, area, wait_for_completition=True):
-        return self.bestil_with_env(self.environment, area, wait_for_completition)
+    def deploy_project(self, area, wait_for_completition=True):
+        return self.deploy_project_with_env(self.environment, area, wait_for_completition)
 
-    def bestil_with_env(self, env, area, wait_for_completition=True):
+    def deploy_project_with_env(self, env, area, wait_for_completition=True):
         return self.build(get_url_suffix_deploy(env, area), wait_for_completition=wait_for_completition)
 
     def bec_start_recon(self, date, wait_for_completition=True):
