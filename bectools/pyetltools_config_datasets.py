@@ -23,14 +23,24 @@ connector.add(Dataset(
     cache_in_hive=True
 ))
 
+
+connector.add(Dataset(
+    key="DS/FTST2/NZ/CNF_KONCERN",
+    db_connector="DB/FTST2/NZ",
+    table="META.CNF_KONCERN",
+    data_source="FTST2_META",
+    lazy_load=True,
+    cache_in_hive=False
+))
+
 connector.add(Dataset(
     key="DS/FTST2/SQL_PC_REP/BEC_TASK_INST_RUN_ANALYSIS",
     db_connector="DB/FTST2/SQL/PC_REP",
-    query="select * from [D00000TD10_PWC_REP_FTST2].[DBO].[BEC_TASK_INST_RUN_ANALYSIS] where {where} ",
-    query_arguments={"start_time": '2019-06-01 17:00:00.000'},
-    data_source=None,
+    query="select * from [D00000TD10_PWC_REP_FTST2].[DBO].[BEC_TASK_INST_RUN_ANALYSIS] where start_time > '{start_time}' ",
+    query_arguments={"start_time": '2020-02-01 17:00:00.000'},
+    data_source="D00000TD10_PWC_REP_FTST2",
     lazy_load=True,
-    cache_in_hive=True
+    cache_in_hive=False
 ))
 
 connector.add(Dataset(
@@ -40,7 +50,7 @@ connector.add(Dataset(
     query_arguments={'start_time': '2020-02-01 17:00:00.000'},
     data_source='D00000PD10_PWC_REP_PROD',
     lazy_load=True,
-    cache_in_hive=True
+    cache_in_hive=False
 ))
 
 connector.add(Dataset(

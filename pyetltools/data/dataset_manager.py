@@ -141,6 +141,12 @@ class Dataset(Connector):
         else:
             return f"select * from {self.table}"
 
+    def get_query_arguments(self):
+        return self.query_arguments
+
+    def set_query_arguments(self, args):
+        self.query_arguments=args
+
     def get_query(self, args=None):
         arguments=self.query_arguments
         if args:
@@ -197,9 +203,10 @@ class Dataset(Connector):
         return self.get_db_connector().run_query_spark_dataframe(self.get_query_with_args(args),
                                            spark_register_name)
 
-    def get_spark_df(self):
-        data_source = "cache"
 
+    def get_spark_df(self, args=None):
+
+        data_source = "cache"
         if not self.df_spark:
             # not loaded yet
             if self.cache_in_hive:

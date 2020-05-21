@@ -34,6 +34,16 @@ class JiraIssue:
     def get_key(self):
         return self.content["key"]
 
+    def set_assignee_name(self, key):
+        if "assignee" not in  self.content["fields"]:
+            self.content["fields"]["assignee"]={}
+        if not self.content["fields"]["assignee"]:
+            self.content["fields"]["assignee"]={}
+        self.content["fields"]["assignee"]["name"] = key
+
+    def get_assignee_name(self):
+        return self.content["fields"]["assignee"]["name"]
+
     def __repr__(self):
         return self.get_id()+":"+self.get_summary()
 

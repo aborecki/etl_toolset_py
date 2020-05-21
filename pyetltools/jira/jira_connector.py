@@ -55,7 +55,7 @@ class JiraConnector(Connector):
 
     def request_get(self,url_suffix):
         print(url_suffix)
-        response = requests.get(self.get_url(url_suffix), headers=self.get_headers())
+        response = requests.get(self.get_url(url_suffix), headers=self.get_headers(), verify=False)
         try:
             response = json.loads(response.content)
         except Exception as e:
@@ -68,7 +68,7 @@ class JiraConnector(Connector):
         return response
 
     def request_put(self,url_suffix, data):
-        response = requests.put(self.get_url(url_suffix), data=data, headers=self.get_headers())
+        response = requests.put(self.get_url(url_suffix), data=data, headers=self.get_headers(), verify=False)
         return response
 
     def get_issue(self, issue_id) -> JiraIssue:
@@ -106,7 +106,7 @@ class JiraConnector(Connector):
         if not changed:
             print("Nothing to update")
             return
-        #print(json.dumps(updated_fields))
+        print(json.dumps(updated_fields))
         #updated_fields["key"]=jira.content_original["key"]
         #updated_fields["id"] = jira.content_original["id"]
         if "fields" not in updated_fields:
