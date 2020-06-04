@@ -14,14 +14,89 @@ class Query:
     def __init__(self):
         pass
 
-
-class Dataset(Connector):
-
+class HiveCache:
     HIVE_SCHEMA="datasets"
     HIVE_SCHEMA_ARCHIVE="datasets_archive"
 
+    def __init__(self, dataset, spark_connector="SPARK", hive_schema=None, hive_archive_schema=None, hive_archive_before_drop=True):
+        self.hive_schema = hive_schema if hive_schema else HiveCache.HIVE_SCHEMA
+        self.hive_archive_schema = hive_archive_schema if hive_archive_schema else HiveCache.HIVE_SCHEMA_ARCHIVE
+        self.hive_archive_before_drop=hive_archive_before_drop
+        self.spark_connector = spark_connector
+        self.dataset=dataset
+
+    def get_spark_connector(self):
+        return connector.get(self.spark_connector)
+
+    def get_spark_session(self):
+        return self.get_spark_connector().get_spark_session()
+
+    def check_if_hive_schema_exists(self, schema):
+        spark_session: SparkSession = self.get_spark_session()
+        return len([db for db in spark_session.catalog.listDatabases()
+                    if db.name.lower() == schema.lower()]) > 0
+
+    def check_if_hive_table_exists(self, table_name):
+        spark_session: SparkSession = self.get_spark_session()
+
+        if not self.check_if_hive_schema_exists(self.hive_schema):
+            return False
+
+        listOfTables = spark_session.catalog.listTables(self.hive_schema) if self.hive_schema \
+            else spark_session.catalog.listTables()
+        cnt= len([db for db in listOfTables
+                    if db.name.lower() == table_name.lower() and not db.isTemporary])
+        return cnt>0
+
+    def get_hive_table_name(self):
+        return  self.dataset.key.replace("/","_")
+
+    def t(self):
+        return self.get_hive_table_name_with_schema()
+
+    def get_hive_table_name_with_schema(self):
+        return (self.hive_schema + '.' if self.hive_schema else '') + self.get_hive_table_name()
+
+    def get_hive_archive_table_name_with_schema(self):
+        return (self.hive_archive_schema + '.' if self.hive_archive_schema else '') + self.get_hive_table_name()
+
+    def save_as_hive_table(self):
+        spark_session: SparkSession = self.get_spark_session()
+        if not self.check_if_hive_schema_exists(self.hive_schema):
+            spark_session.sql("create schema "+self.hive_schema)
+        if not self.check_if_hive_schema_exists(self.hive_archive_schema):
+            spark_session.sql("create schema "+self.hive_archive_schema)
+        table_name=self.get_hive_table_name_with_schema()
+        archive_table_name = self.get_hive_archive_table_name_with_schema()
+
+        if self.check_if_hive_table_exists(self.get_hive_table_name()):
+            if self.hive_archive_before_drop:
+                dateTimeObj = datetime.now()
+                timestampStr = dateTimeObj.strftime("%Y%m%d_%H%M%S")
+
+                spark_session.sql(f"select * from {table_name}").\
+                    write.saveAsTable(f"{archive_table_name}_"+timestampStr)
+            spark_session.sql(f"drop table {table_name}")
+        if self.df_spark is not None:
+            self.df_spark.write.saveAsTable(table_name)
+
+    def get_from_hive_spark_df(self):
+        spark_session: SparkSession = self.get_spark_connector().get_spark_session()
+        if self.check_if_hive_table_exists(self.get_hive_table_name()):
+            df = spark_session.sql(f"select * from  {self.get_hive_table_name_with_schema()}")
+            print("Hive snapshot created time:" +spark_session.sql("desc formatted  "+ self.get_hive_table_name_with_schema()).filter(
+                'col_name="Created Time"').select(["data_type"]).head().data_type)
+            self.df_spark = df
+            return self.df_spark
+        else:
+            return None
+
+class Dataset(Connector):
     def __init__(self, key=None, db_connector=None, query=None, query_arguments=None, table=None, data_source=None,
-                 spark_register_name=None, lazy_load=False, cache_in_hive=False, hive_schema=None, hive_archive_schema=None, hive_archive_before_drop=True, spark_connector="SPARK"):
+                 spark_register_name=None, lazy_load=True, spark_connector="SPARK",
+                 cache_in_hive=False, hive_schema=None, hive_archive_schema=None,
+                 hive_archive_before_drop=True
+                 ):
         assert query is not None or table is not None, "DatasetConfig has to have one of the query and table parameters set. Both are None"
         super().__init__(key)
         self.key = key
@@ -33,12 +108,15 @@ class Dataset(Connector):
         self.spark_register_name = spark_register_name
         self.lazy_load = lazy_load
         self.cache_in_hive = cache_in_hive
-        self.hive_schema = hive_schema if hive_schema else Dataset.HIVE_SCHEMA
-        self.hive_archive_schema = hive_archive_schema if hive_archive_schema else Dataset.HIVE_SCHEMA_ARCHIVE
+        self.hive_cache=None
+        if cache_in_hive:
+            self.hive_cache=HiveCache(self, spark_connector,
+                     hive_schema, hive_archive_schema,
+                     hive_archive_before_drop)
+
         self.df_spark = None
         self.df_pandas = None
         self.spark_connector = spark_connector
-        self.hive_archive_before_drop=hive_archive_before_drop
         self._db_connector=None
 
         if not self.lazy_load:
@@ -67,66 +145,7 @@ class Dataset(Connector):
         assert isinstance(spark_connector,
                           SparkConnector), "Connector {self.spark_connector} is not of the type SparkConnector"
 
-    def check_if_hive_schema_exists(self, schema):
-        spark_session: SparkSession = self.get_spark_session()
-        return len([db for db in spark_session.catalog.listDatabases()
-                    if db.name.lower() == schema.lower()]) > 0
 
-    def check_if_hive_table_exists(self, table_name):
-        spark_session: SparkSession = self.get_spark_session()
-
-        if not self.check_if_hive_schema_exists(self.hive_schema):
-            return False
-
-        listOfTables = spark_session.catalog.listTables(self.hive_schema) if self.hive_schema \
-            else spark_session.catalog.listTables()
-        cnt= len([db for db in listOfTables
-                    if db.name.lower() == table_name.lower() and not db.isTemporary])
-        return cnt>0
-
-    def get_hive_table_name(self):
-        return  self.key.replace("/","_")
-
-    def t(self):
-        return self.get_hive_table_name_with_schema()
-
-    def get_hive_table_name_with_schema(self):
-        return (self.hive_schema + '.' if self.hive_schema else '') + self.get_hive_table_name()
-
-    def get_hive_archive_table_name_with_schema(self):
-        return (self.hive_archive_schema + '.' if self.hive_archive_schema else '') + self.get_hive_table_name()
-
-    def save_as_hive_table(self):
-        spark_session: SparkSession = self.get_spark_session()
-        if not self.check_if_hive_schema_exists(self.hive_schema):
-            spark_session.sql("create schema "+self.hive_schema)
-        if not self.check_if_hive_schema_exists(self.hive_archive_schema):
-            spark_session.sql("create schema "+self.hive_archive_schema)
-        table_name=self.get_hive_table_name_with_schema()
-        archive_table_name = self.get_hive_archive_table_name_with_schema()
-
-        if self.check_if_hive_table_exists(self.get_hive_table_name()):
-            if self.hive_archive_before_drop:
-                dateTimeObj = datetime.now()
-                timestampStr = dateTimeObj.strftime("%Y%m%d_%H%M%S")
-
-                spark_session.sql(f"select * from {table_name}").\
-                    write.saveAsTable(f"{archive_table_name}_"+timestampStr)
-            spark_session.sql(f"drop table {table_name}")
-        if self.df_spark is None:
-            self.refresh_spark_df_from_source()
-        self.df_spark.write.saveAsTable(table_name)
-
-    def get_from_hive_spark_df(self):
-        spark_session: SparkSession = self.get_spark_connector().get_spark_session()
-        if self.check_if_hive_table_exists(self.get_hive_table_name()):
-            df = spark_session.sql(f"select * from  {self.get_hive_table_name_with_schema()}")
-            print("Hive snapshot created time:" +spark_session.sql("desc formatted  "+ self.get_hive_table_name_with_schema()).filter(
-                'col_name="Created Time"').select(["data_type"]).head().data_type)
-            self.df_spark = df
-            return self.df_spark
-        else:
-            return None
 
     def get_query_with_args(self, args=None):
         if self.query is not None:
@@ -185,7 +204,7 @@ class Dataset(Connector):
                                            else self.key.replace("/","_"))
         self.df_spark = df
         if self.cache_in_hive:
-            self.save_as_hive_table()
+            self.hive_cache.save_as_hive_table()
 
     def run_custom_query_spark_df(self, custom_query, args=None, spark_register_name=None):
         acct_args={};
@@ -212,7 +231,7 @@ class Dataset(Connector):
             if self.cache_in_hive:
                 # maybe cached in hive? if not it will return None
                 print("Trying to retrieve from hive")
-                self.df_spark = self.get_from_hive_spark_df()
+                self.df_spark = self.hive_cache.get_from_hive_spark_df()
                 data_source = "hive cache"
                 if not self.df_spark:
                     print("Hive retrieval unsuccessful")
@@ -220,7 +239,7 @@ class Dataset(Connector):
                 # still None - get data from database
                 self.refresh_spark_df_from_source()
                 if self.cache_in_hive:
-                    self.save_as_hive_table()
+                    self.hive_cache.save_as_hive_table()
                 data_source = "database"
 
         print("Spark DF retrieved from " + data_source + ".")
@@ -237,35 +256,3 @@ class Dataset(Connector):
 
         return self.df_pandas
 
-
-class DatasetManager(Connector):
-
-
-
-    def __init__(self, key, datasets, spark_connector="SPARK"):
-        super().__init__(key)
-        self.spark_connector = spark_connector
-        self.datasets = {}
-
-        for ds in datasets:
-            ds.hive_schema = self.HIVE_SCHEMA
-            ds.hive_archive_schema =self.HIVE_SCHEMA_ARCHIVE
-            key = self.add_dataset(ds)
-
-    def validate_config(self):
-        super().validate_config()
-        connector.get(self.spark_connector)
-
-    def add_dataset(self, ds):
-        key = ds.get_key()
-        if key in self.datasets:
-            raise Exception("Dataset with key {key} already exists.")
-        self.datasets[key] = ds
-
-        if not ds.lazy_load:
-            # force dataset load
-            ds.get_spark_df(self, key)
-
-        if not hasattr(DatasetManager, key):
-            setattr(DatasetManager, key, ds)
-        return key
