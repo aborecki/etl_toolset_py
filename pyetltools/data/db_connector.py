@@ -151,6 +151,7 @@ class DBConnector(Connector):
             else:
                 print("No data returned.")
         if registerTempTableName is not None:
+            print("Registering temp table as:"+registerTempTableName)
             ret.registerTempTable(registerTempTableName)
         return ret
 
@@ -158,7 +159,7 @@ class DBConnector(Connector):
         conn = pyodbc.connect(self.get_odbc_conn_string())
         return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None)
 
-    def execute_statement(self, statement):
+    def execute_statement(self, statement, add_col_names=False):
         conn = self.get_odbc_connection()
 
 
@@ -167,14 +168,22 @@ class DBConnector(Connector):
         res = []
         print("rowcount:" + str(cursor.rowcount))
         try:
-            res.append(cursor.fetchall())
+            recs = cursor.fetchall()
+            if add_col_names:
+                fields = tuple(map(lambda x: x[0], cursor.description))
+                recs.insert(0, fields)
+            res.append(recs)
             for row in cursor.fetchall():
                 print(row)
         except pyodbc.ProgrammingError:
             pass
         while cursor.nextset():  # NB: This always skips the first resultset
             try:
-                res.append(cursor.fetchall())
+                recs=cursor.fetchall()
+                if add_col_names:
+                    fields = tuple(map(lambda x: x[0], cursor.description))
+                    recs.insert(0, fields)
+                res.append(recs)
                 for row in cursor.fetchall():
                     print(row)
                 # break

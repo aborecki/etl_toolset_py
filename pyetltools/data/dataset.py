@@ -9,10 +9,53 @@ from pyetltools.core.connector import Connector
 from pyetltools.data.db_connector import DBConnector
 from pyetltools.data.spark.spark_connector import SparkConnector
 
-
+import os
 class Query:
     def __init__(self):
         pass
+
+
+
+
+def set_default_cache_folder(folder):
+    global DEFAULT_CACHE_FOLDER
+    DEFAULT_CACHE_FOLDER=folder
+
+def get_default_cache_folder():
+    return DEFAULT_CACHE_FOLDER
+
+
+class FilesystemCache:
+    def __init__(self, dataset, folder, spark_connector="SPARK"):
+        self.folder=folder
+        self.dataset = dataset
+        self.spark_connector=spark_connector
+
+
+    def get_spark_connector(self):
+        return connector.get(self.spark_connector)
+
+    def get_file_name_name(self):
+        if not self.dataset.key:
+            raise Exception("Cannot cache in file - no key set for dataset")
+        return   os.path.join(self.folder, self.dataset.key.replace("/","_")+".parquet")
+
+    def get_spark_df(self):
+        try:
+            df=self.get_spark_connector().get_spark_session().read.parquet(self.get_file_name_name())
+            return df
+        except:
+            return None
+
+    def save(self):
+        if self.dataset.df_spark is None:
+            self.dataset.load_spark_df()
+        file_path=self.get_file_name_name()
+        if os.path.exists(file_path):
+            import shutil
+            shutil.rmtree(file_path)
+        self.dataset.df_spark.write.parquet(file_path)
+        print("Dataset saved as " + file_path)
 
 class HiveCache:
     HIVE_SCHEMA="datasets"
@@ -44,8 +87,9 @@ class HiveCache:
 
         listOfTables = spark_session.catalog.listTables(self.hive_schema) if self.hive_schema \
             else spark_session.catalog.listTables()
-        cnt= len([db for db in listOfTables
-                    if db.name.lower() == table_name.lower() and not db.isTemporary])
+        cnt= len([tb for tb in listOfTables
+                    if tb.name.lower() == table_name.lower()  and not tb.isTemporary#
+                  ])
         return cnt>0
 
     def get_hive_table_name(self):
@@ -60,7 +104,7 @@ class HiveCache:
     def get_hive_archive_table_name_with_schema(self):
         return (self.hive_archive_schema + '.' if self.hive_archive_schema else '') + self.get_hive_table_name()
 
-    def save_as_hive_table(self):
+    def save(self):
         spark_session: SparkSession = self.get_spark_session()
         if not self.check_if_hive_schema_exists(self.hive_schema):
             spark_session.sql("create schema "+self.hive_schema)
@@ -73,14 +117,17 @@ class HiveCache:
             if self.hive_archive_before_drop:
                 dateTimeObj = datetime.now()
                 timestampStr = dateTimeObj.strftime("%Y%m%d_%H%M%S")
-
+                arch_table_name=f"{archive_table_name}_"+timestampStr
+                print(f"Archiving table as {arch_table_name}")
                 spark_session.sql(f"select * from {table_name}").\
-                    write.saveAsTable(f"{archive_table_name}_"+timestampStr)
+                    write.saveAsTable(arch_table_name)
+            print(f"Dropping table {arch_table_name}.")
             spark_session.sql(f"drop table {table_name}")
-        if self.df_spark is not None:
-            self.df_spark.write.saveAsTable(table_name)
+        if self.dataset.df_spark is None:
+            self.dataset.load_spark_df()
+        self.dataset.df_spark.write.saveAsTable(table_name)
 
-    def get_from_hive_spark_df(self):
+    def get_spark_df(self):
         spark_session: SparkSession = self.get_spark_connector().get_spark_session()
         if self.check_if_hive_table_exists(self.get_hive_table_name()):
             df = spark_session.sql(f"select * from  {self.get_hive_table_name_with_schema()}")
@@ -91,11 +138,14 @@ class HiveCache:
         else:
             return None
 
+
+
+
 class Dataset(Connector):
     def __init__(self, key=None, db_connector=None, query=None, query_arguments=None, table=None, data_source=None,
                  spark_register_name=None, lazy_load=True, spark_connector="SPARK",
-                 cache_in_hive=False, hive_schema=None, hive_archive_schema=None,
-                 hive_archive_before_drop=True
+                 cache_in_hive=False, cache_in_filesystem=False, hive_schema=None, hive_archive_schema=None,
+                 hive_archive_before_drop=True, cache_folder=None
                  ):
         assert query is not None or table is not None, "DatasetConfig has to have one of the query and table parameters set. Both are None"
         super().__init__(key)
@@ -108,11 +158,19 @@ class Dataset(Connector):
         self.spark_register_name = spark_register_name
         self.lazy_load = lazy_load
         self.cache_in_hive = cache_in_hive
+        self.cache_in_filesystem=cache_in_filesystem
         self.hive_cache=None
+        self.cache_folder=cache_folder
+
         if cache_in_hive:
             self.hive_cache=HiveCache(self, spark_connector,
                      hive_schema, hive_archive_schema,
                      hive_archive_before_drop)
+
+        if cache_in_filesystem:
+            if not self.cache_folder:
+                self.cache_folder=get_default_cache_folder()
+            self.filesystem_cache=FilesystemCache(self, self.cache_folder)
 
         self.df_spark = None
         self.df_pandas = None
@@ -196,15 +254,23 @@ class Dataset(Connector):
         # gets pandas data frame and discards result
         self.get_pandas_df()
 
+    def get_spark_register_name(self):
+        if self.spark_register_name :
+            return self.spark_register_name
+        else:
+            if self.key:
+                return self.key.replace("/","_")
+
     def refresh_spark_df_from_source(self, args=None):
         con: DBConnector = self.get_db_connector()
 
-        df = con.run_query_spark_dataframe(self.get_query(args),
-                                           self.spark_register_name if self.spark_register_name
-                                           else self.key.replace("/","_"))
+        df = con.run_query_spark_dataframe(self.get_query(args), self.get_spark_register_name()
+                                         )
         self.df_spark = df
         if self.cache_in_hive:
-            self.hive_cache.save_as_hive_table()
+            self.hive_cache.save()
+        if self.cache_in_filesystem:
+            self.filesystem_cache.save()
 
     def run_custom_query_spark_df(self, custom_query, args=None, spark_register_name=None):
         acct_args={};
@@ -223,15 +289,22 @@ class Dataset(Connector):
                                            spark_register_name)
 
 
-    def get_spark_df(self, args=None):
+    def get_spark_df(self):
 
         data_source = "cache"
         if not self.df_spark:
             # not loaded yet
-            if self.cache_in_hive:
+
+            if self.cache_in_filesystem:
+                print("Trying to retrieve from filesystem")
+                self.df_spark = self.filesystem_cache.get_spark_df()
+                data_source = "filesystem cache"
+                if not self.df_spark:
+                    print("Filesystem retrieval unsuccessful")
+            if not self.df_spark and self.cache_in_hive:
                 # maybe cached in hive? if not it will return None
                 print("Trying to retrieve from hive")
-                self.df_spark = self.hive_cache.get_from_hive_spark_df()
+                self.df_spark = self.hive_cache.get_spark_df()
                 data_source = "hive cache"
                 if not self.df_spark:
                     print("Hive retrieval unsuccessful")
@@ -239,10 +312,15 @@ class Dataset(Connector):
                 # still None - get data from database
                 self.refresh_spark_df_from_source()
                 if self.cache_in_hive:
-                    self.hive_cache.save_as_hive_table()
+                    self.hive_cache.save()
+                if self.cache_in_filesystem:
+                    self.filesystem_cache.save()
                 data_source = "database"
-
-        print("Spark DF retrieved from " + data_source + ".")
+        spark_register_name=self.get_spark_register_name()
+        if spark_register_name:
+            print("Registering temp table as: "+spark_register_name)
+            self.df_spark.registerTempTable(spark_register_name)
+        print("Spark dataframe retrieved from " + data_source + ".")
         return self.df_spark
 
     def get_pandas_df(self):

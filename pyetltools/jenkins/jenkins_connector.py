@@ -20,6 +20,8 @@ class JenkinsConnector(Connector):
         super().validate_config()
 
     def get_url(self, suffix=""):
+        print(self.url)
+        print(suffix)
         return self.url.strip("/")+"/"+suffix.strip("/")
 
     def build(self, url_suffix, params=None, wait_for_completition=True):
@@ -44,7 +46,7 @@ class JenkinsConnector(Connector):
         while not buildUrl:
             queue_status = json.loads(self.request_get(url).content)
             print(".", end="")
-            if "url" in queue_status["executable"]:
+            if "executable" in queue_status and "url" in queue_status["executable"]:
                 buildUrl = queue_status["executable"]["url"] + "api/json"
             time.sleep(5)
         print("")

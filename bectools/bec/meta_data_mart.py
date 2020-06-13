@@ -2,7 +2,7 @@ from pyspark.sql.session import SparkSession
 from time import gmtime, strftime
 
 import pyetltools.core.connector as c
-from pyetltools.data.dataset_manager import Dataset
+from pyetltools.data.dataset import Dataset
 from pyetltools.data.db_connector import DBConnector
 from pyetltools.data.spark.spark_connector import SparkConnector
 

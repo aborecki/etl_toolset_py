@@ -2,7 +2,7 @@
 #
 # # DATASET MANAGER Config
 from pyetltools.core import connector
-from pyetltools.data.dataset_manager import Dataset, DatasetManager
+from pyetltools.data.dataset import Dataset
 
 
 connector.add(Dataset(
@@ -34,6 +34,24 @@ connector.add(Dataset(
 ))
 
 connector.add(Dataset(
+    key="DS/FTST2/NZ/CNF_BANK_SOLUTION",
+    db_connector="DB/FTST2/NZ",
+    table="META.CNF_BANK_SOLUTION",
+    data_source="FTST2_META",
+    lazy_load=True,
+    cache_in_hive=False
+))
+
+connector.add(Dataset(
+    key="DS/FTST2/NZ/",
+    db_connector="DB/FTST2/NZ",
+    table="META.CNF_BANK_SOLUTION",
+    data_source="FTST2_META",
+    lazy_load=True,
+    cache_in_hive=False
+))
+
+connector.add(Dataset(
     key="DS/FTST2/SQL_PC_REP/BEC_TASK_INST_RUN_ANALYSIS",
     db_connector="DB/FTST2/SQL/PC_REP",
     query="select * from [D00000TD10_PWC_REP_FTST2].[DBO].[BEC_TASK_INST_RUN_ANALYSIS] where start_time > '{start_time}' ",
@@ -46,7 +64,7 @@ connector.add(Dataset(
 connector.add(Dataset(
     key="DS/PROD/SQL_PC_REP/BEC_TASK_INST_RUN_ANALYSIS",
     db_connector="DB/PROD/SQL/PC_REP",
-    query="select * from [D00000PD10_PWC_REP_PROD].[DBO].[BEC_TASK_INST_RUN_ANALYSIS] where start_time > '{start_time}'",
+    query="select * from [DBO].[BEC_TASK_INST_RUN_ANALYSIS] where start_time > '{start_time}'",
     query_arguments={'start_time': '2020-02-01 17:00:00.000'},
     data_source='D00000PD10_PWC_REP_PROD',
     lazy_load=True,
@@ -56,11 +74,31 @@ connector.add(Dataset(
 connector.add(Dataset(
     key="DS/PROD/SQL_PC_REP/BEC_TASK_INST_RUN",
     db_connector="DB/PROD/SQL/PC_REP",
-    query="select * from [D00000PD10_PWC_REP_PROD].[DBO].[BEC_TASK_INST_RUN] where start_time > '{start_time}'",
+    query="select * from [DBO].[BEC_TASK_INST_RUN] where start_time > '{start_time}'",
     query_arguments={'start_time': '2020-02-01 17:00:00.000'},
     data_source='D00000PD10_PWC_REP_PROD',
     lazy_load=True,
-    cache_in_hive=True
+    cache_in_hive=False
+))
+
+connector.add(Dataset(
+    key="DS/FTST2/SQL_PC_REP/BEC_TASK_INST_RUN",
+    db_connector="DB/FTST2/SQL/PC_REP",
+    query="select * from [DBO].[BEC_TASK_INST_RUN] where start_time > '{start_time}'",
+    query_arguments={'start_time': '2020-02-01 17:00:00.000'},
+    data_source='D00000TD10_PWC_REP_FTST2',
+    lazy_load=True,
+    cache_in_hive=False
+))
+
+connector.add(Dataset(
+    key="DS/UTST/SQL_PC_REP/BEC_TASK_INST_RUN",
+    db_connector="DB/UTST/SQL/PC_REP",
+    query="select * from [DBO].[BEC_TASK_INST_RUN] where start_time > '{start_time}'",
+    query_arguments={'start_time': '2020-02-01 17:00:00.000'},
+    data_source='D00000TD10_PWC_REP_UTST',
+    lazy_load=True,
+    cache_in_hive=False
 ))
 
 

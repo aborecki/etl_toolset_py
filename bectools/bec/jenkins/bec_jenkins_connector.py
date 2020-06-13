@@ -5,32 +5,44 @@ import json
 from pyetltools.core import connector
 from pyetltools.jenkins.jenkins_connector import JenkinsConnector
 import time
-
+import re
 
 def get_url_suffix_run_like_opc(env):
-    if env == 'FTST2':
-        return "/view/PWC10/view/PWC10_FTST/view/PWC10_FTST2/job/PWC10_runlikeopc-FTST2-execute/"
+    correct_envs=["DEV","TEST","FTST","UTST"]
+
+    assert re.sub(r'\d+', '', env) in correct_envs, f"Environment {env} not supported by Jenkins connector. Supported envs: "+str(correct_envs)
+
+    if env.startswith("FTST"):
+        return f"/view/PWC10/view/PWC10_FTST/view/PWC10_FTST2/job/PWC10_runlikeopc-{env}-execute/"
+    else:
+        return f"view/PWC10/view/PWC10_{env}/job/PWC10_runlikeopc-{env}-execute/"
+
 
     raise Exception(f"env {env} parameter not known.")
 
 
 def get_url_suffix_deploy(env, area):
-    correct_envs=["TEST","FTST2"]
-    correct_areas=["MDW", "RAP"]
-    assert env in correct_envs, f"Environment {env} not supported by Jenkins connector. Supported envs: "+str(correct_envs)
-    assert area in correct_areas, f"Area {area} not supported by Jenkins connector. Supported areas " + str(correct_areas)
-    if env == "TEST":
-        return f"view/PWC10/view/PWC10_{env}/job/PWC10_deployproject_{area}-{env}-Deploy/"
+    correct_envs=["DEV","TEST","FTST","UTST"]
+
+    assert re.sub(r'\d+', '', env) in correct_envs, f"Environment {env} not supported by Jenkins connector. Supported envs: "+str(correct_envs)
+
     if env.startswith("FTST"):
         return f"view/PWC10/view/PWC10_FTST/view/PWC10_{env}/job/PWC10_deployproject_{area}-{env}-Deploy/"
+    else:
+        return f"view/PWC10/view/PWC10_{env}/job/PWC10_deployproject_{area}-{env}-Deploy/"
 
 def check_date_YYYYMMDD(date):
     datetime.datetime.strptime(date, '%Y%m%d')
 
 
+
 def manual_confirm():
-    answer = input(f"Are you sure Y/N:")
-    if answer.upper() != 'Y':
+    m=f"Are you sure Y/N:"
+    answer = input(m)
+    while answer.upper() not in ['Y','N']:
+        print("Y(Yes)/N(No) ?")
+        answer = input(m)
+    if  answer.upper() =="N":
         raise Exception("Action canceled.")
 
 
@@ -69,17 +81,24 @@ class BECJenkinsConnector(JenkinsConnector):
     def bec_start_init(self, date, wait_for_completition=True):
         return self.bec_build_runlikeopc(self.environment, '.MDWINI0', date, wait_for_completition=wait_for_completition)
 
+    def bec_start_wf_extract_NZ_information(self, date, wait_for_completition=True):
+        return self.bec_build_runlikeopc(self.environment, '.EDWM050 ', date, wait_for_completition=wait_for_completition)
+
+    def bec_start_wf_extract_NZCAT_tables(self, date, wait_for_completition=True):
+        return self.bec_build_runlikeopc(self.environment, '.EDWM051', date, wait_for_completition=wait_for_completition)
+
     def bec_build_runlikeopc(self, opcjob, bankdag=None, wait_for_completition=True):
         return self.bec_build_runlikeopc(self, self.environement, opcjob, bankdag=None, wait_for_completition=wait_for_completition)
 
-    def bec_build_runlikeopc(self, env, opcjob, bankdag=None, wait_for_completition=True):
+    def bec_build_runlikeopc(self, env, opcjob, bankdag=None, wait_for_completition=True, confirm=False):
 
         params = {"runopc_opcjob": opcjob}
         if bankdag is not None:
             params["runopc_bankdag"] = bankdag
         url_suffix = get_url_suffix_run_like_opc(env)
         print("Running: " + url_suffix + " " + str(params))
-        manual_confirm()
+        if not confirm:
+            manual_confirm()
         return self.build(url_suffix,
                           params=params, wait_for_completition=wait_for_completition)
 

@@ -22,6 +22,18 @@ class SparkConnector(Connector):
             self._spark_session = get_spark_session(self.master, self.options)
         return self._spark_session
 
+    def get_spark_context(self):
+        return self.get_spark_session().sparkContext
+
+    def parallelize(self):
+        return self.get_spark_context()
+
+    def create_data_frame(self, c, schema="COLUMN string", spark_register_name=None):
+        df = self.get_spark_session().createDataFrame([(i,) for i in c], schema)
+        if spark_register_name:
+            df.registerTempTable(spark_register_name)
+        return df
+
     def __init__(self, key, master, options=None):
         super().__init__(key=key)
         self.master=master
@@ -45,6 +57,7 @@ class SparkConnector(Connector):
             password=get_pasword()
             if password:
                 cf = cf.option("password", password)
+        #print("Query/table:"+query_or_table)
         df = cf.load()
 
         df.persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)

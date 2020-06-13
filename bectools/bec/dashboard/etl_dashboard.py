@@ -1,7 +1,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from pyetltools import connectors as _
+from bectools import connectors as _
 from dash.dependencies import Input, Output
 import cufflinks as cf
 cf.go_offline()

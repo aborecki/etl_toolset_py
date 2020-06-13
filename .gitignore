@@ -1,10 +1,11 @@
 #configuration files - may contain sensitive data
-bectools/pyetltools_passwords.py
-bectools/pyetltools_config.py
+bectools/bec_passwords.py
+bectools/bec_config.py
 
-notebooks/
+../bec_tasks/notebooks/
 spark-warehouse/
 metastore_db/
+bectools/dataset_filesystem_cache/
 .idea/
 
 build/

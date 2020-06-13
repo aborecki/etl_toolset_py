@@ -3,6 +3,7 @@ from enum import Enum
 class ResourceType(Enum):
     DB="DB"
     HGPROD="HGPROD"
+    HG="HG"
     JENKINS= "JENKINS"
     JIRA="JIRA"
     INFA="INFA"
