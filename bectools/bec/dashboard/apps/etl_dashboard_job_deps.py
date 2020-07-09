@@ -19,7 +19,7 @@ from bectools.bec import datasources
 def get_opc_dependencies_dataset( opc_jobname='%'):
     return datasources.get_opc_dependencies_dataset( opc_jobname)
 
-df=get_opc_dependencies_dataset(opc_jobname="XXXXXX")
+df=get_opc_dependencies_dataset(opc_jobname="XXXXXX").get_pandas_df()
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
