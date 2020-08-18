@@ -59,12 +59,12 @@ class JiraConnector(Connector):
         try:
             response = json.loads(response.content)
         except Exception as e:
-            print("Cannot parse json. " + str(response))
+            print("Cannot parse json. " + str(response)+"\n"+str(response.content))
             raise e
         return response
 
     def request_post(self,url_suffix, data):
-        response = requests.post(self.get_url(url_suffix), data=data, headers=self.get_headers())
+        response = requests.post(self.get_url(url_suffix), data=data, headers=self.get_headers(), verify=False)
         return response
 
     def request_put(self,url_suffix, data):

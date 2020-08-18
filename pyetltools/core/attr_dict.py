@@ -1,4 +1,4 @@
-class AttrDict(object):
+class  AttrDict(object):
     def __init__(self, initializer=None):
         self._data=dict()
         self._initializer = initializer

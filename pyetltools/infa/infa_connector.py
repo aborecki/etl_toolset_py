@@ -62,19 +62,19 @@ class InfaConnector(Connector):
         return connector.get(self.infa_cmd_connector_key)
 
     def get_connections_as_pd_df(self):
-        return self.get_infa_repo_db_connector().run_query_pandas_dataframe(self.Sqls.sql_connections)
+        return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_connections)
 
     def get_connections_as_spark_df(self):
-        return self.get_infa_repo_db_connector().run_query_spark_dataframe(self.Sqls.sql_connections)
+        return self.get_infa_repo_db_connector().query_spark(self.Sqls.sql_connections)
 
     def get_labels_as_pd_df(self):
-        return self.get_infa_repo_db_connector().run_query_pandas_dataframe(self.Sqls.sql_labels)
+        return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_labels)
 
     def get_labels(self):
         return sorted(self.get_labels_as_pd_df()["LABEL_NAME"])
 
     def get_last_created_label(self, label_prefix):
-        return self.get_infa_repo_db_connector().run_query_pandas_dataframe(self.Sqls.sql_label_max(label_prefix))
+        return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_label_max(label_prefix))
 
     def check_label_exists(self, label):
         current_labels = [i.upper() for i in self.get_labels()]
@@ -148,13 +148,13 @@ class InfaConnector(Connector):
         return False
 
     def get_queries_as_pd_df(self):
-        return self.get_infa_repo_db_connector().run_query_pandas_dataframe(self.Sqls.sql_queries)
+        return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_queries)
 
     def get_queries(self):
         return sorted(self.get_queries_as_pd_df()["QUERY_NAME"])
 
     def get_last_created_query(self, label_prefix):
-        return self.get_infa_repo_db_connector().run_query_pandas_dataframe(self.Sqls.sql_query_max(label_prefix))
+        return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_query_max(label_prefix))
 
 
     def create_deployment_query(self, label):

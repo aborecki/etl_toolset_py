@@ -50,7 +50,10 @@ class JiraIssue:
 
     @classmethod
     def from_content(cls, content):
-        return JiraIssue(content)
+        try:
+            return JiraIssue(content)
+        except:
+            return content
 
     @classmethod
     def from_search_result(cls, content):

@@ -15,6 +15,9 @@ class NZDBDialect(DBDialect):
             order by ordinal_position
         """
 
+    def get_jdbc_driver(self):
+        return None
+
     def get_sql_list_databases(self):
         return "select database as NAME from _v_database"
 

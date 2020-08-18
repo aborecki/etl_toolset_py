@@ -8,7 +8,7 @@ from pyetltools.core import connector
 from pyetltools.core.connector import Connector
 from pyetltools.data.db_connector import DBConnector
 from pyetltools.data.spark.spark_connector import SparkConnector
-
+import pandas as pd
 import os
 class Query:
     def __init__(self):
@@ -47,14 +47,39 @@ class FilesystemCache:
         except:
             return None
 
-    def save(self):
+    def get_pandas_df(self):
+        try:
+            df=pd.read_parquet(self.get_file_name_name())
+            return df
+        except:
+            return None
+
+    def save_spark_df(self):
         if self.dataset.df_spark is None:
             self.dataset.load_spark_df()
+
         file_path=self.get_file_name_name()
         if os.path.exists(file_path):
             import shutil
             shutil.rmtree(file_path)
+
+
         self.dataset.df_spark.write.parquet(file_path)
+        print("Dataset saved as " + file_path)
+
+    def save_pandas_df(self):
+        if self.dataset.df_pandas is None:
+            self.dataset.load_pandas_df()
+
+        file_path = self.get_file_name_name()
+        if os.path.exists(file_path):
+            import shutil
+            if os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+            else:
+                os.remove(file_path)
+
+        self.dataset.df_pandas.to_parquet(file_path)
         print("Dataset saved as " + file_path)
 
 class HiveCache:
@@ -264,13 +289,22 @@ class Dataset(Connector):
     def refresh_spark_df_from_source(self, args=None):
         con: DBConnector = self.get_db_connector()
 
-        df = con.run_query_spark_dataframe(self.get_query(args), self.get_spark_register_name()
-                                         )
+        df = con.query_spark(self.get_query(args), self.get_spark_register_name()
+                             )
         self.df_spark = df
         if self.cache_in_hive:
             self.hive_cache.save()
         if self.cache_in_filesystem:
-            self.filesystem_cache.save()
+            self.filesystem_cache.save_spark_df()
+
+    def refresh_pandas_df_from_source(self, args=None):
+        con: DBConnector = self.get_db_connector()
+
+        df = con.query_pandas(self.get_query(args))
+        self.df_pandas = df
+        if self.cache_in_filesystem:
+            self.filesystem_cache.save_pandas_df()
+        return df
 
     def run_custom_query_spark_df(self, custom_query, args=None, spark_register_name=None):
         acct_args={};
@@ -280,13 +314,13 @@ class Dataset(Connector):
             acct_args.update(args)
         acct_args.update({"query":self.get_query_with_args(acct_args)})
 
-        return self.get_db_connector().run_query_spark_dataframe(
+        return self.get_db_connector().query_spark(
             custom_query.format_map(acct_args),
             spark_register_name)
 
     def run_query_spark_df(self, args=None, spark_register_name=None):
-        return self.get_db_connector().run_query_spark_dataframe(self.get_query_with_args(args),
-                                           spark_register_name)
+        return self.get_db_connector().query_spark(self.get_query_with_args(args),
+                                                   spark_register_name)
 
 
     def get_spark_df(self):
@@ -324,13 +358,18 @@ class Dataset(Connector):
         return self.df_spark
 
     def get_pandas_df(self):
+        data_source = "cache"
         if self.df_pandas is None:
-            con: DBConnector = self.get_db_connector()
-            if self.data_source:
-                con.with_data_source(self.data_source)
-            print("Starting query " + self.get_query(), end="")
-            self.df_pandas = con.run_query_pandas_dataframe(self.get_query())
-            print(" DONE")
-
+            if self.cache_in_filesystem:
+                print("Trying to retrieve from filesystem")
+                self.df_pandas = self.filesystem_cache.get_pandas_df()
+                data_source = "filesystem cache"
+                if self.df_pandas is None:
+                    print("Filesystem retrieval unsuccessful")
+            if  self.df_pandas is None:
+                self.refresh_pandas_df_from_source()
+                if self.cache_in_filesystem:
+                    self.filesystem_cache.save_pandas_df()
+        print("Pandas dataframe retrieved from " + data_source + ".")
         return self.df_pandas
 

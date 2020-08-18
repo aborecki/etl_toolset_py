@@ -1,7 +1,7 @@
 from bectools import connectors as con
 
 def get_lkp_koncern_pd_df():
-    return con.DB.FTST2.NZ.DS.FTST2_META.run_query_pandas_dataframe("select * from meta.CNF_KONCERN")
+    return con.DB.FTST2.NZ.DS.FTST2_META.query_pandas("select * from meta.CNF_KONCERN")
 
 def get_bec_task_inst_run_sql(workflow_name, start_time, where_cond="1=1"):
     """
@@ -44,7 +44,7 @@ def get_bec_task_inst_run_agg_workflow():
     pass
 
 def get_bec_task_inst_run_prod_pd_df(workflow_name, start_time="2020-01-01"):
-    return con.DB.PROD.SQL.PC_REP.DS.D00000PD10_PWC_REP_PROD.run_query_pandas_dataframe(
+    return con.DB.PROD.SQL.PC_REP.DS.D00000PD10_PWC_REP_PROD.query_pandas(
         get_bec_task_inst_run_sql(workflow_name, start_time))
 
 

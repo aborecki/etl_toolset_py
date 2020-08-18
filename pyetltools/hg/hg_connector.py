@@ -13,10 +13,15 @@ class HgConnector(Connector):
         self.sub_folder = sub_folder
         self.set_sub_folder(sub_folder)
 
+
     def set_sub_folder(self, sub_folder):
         self.sub_folder=sub_folder
         working_dir=os.path.join(self.root_folder, sub_folder if sub_folder is not None else "")
         self.hg_command = Cmd("hg", working_dir=working_dir)
+        self.working_dir=working_dir
+
+    def get_working_dir(self):
+        return self.working_dir
 
     def pull(self):
         self.hg_command.run("pull")

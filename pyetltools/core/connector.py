@@ -29,7 +29,7 @@ class Connector(metaclass=ABCMeta):
         if self.password is None:
             return connector.get_password(self.key)
         else:
-            return None
+            return self.password
 
     def __repr__(self):
         return f"{self.__class__.__name__} - {self.key}"
@@ -43,9 +43,12 @@ def set_passwords(_passwords):
 
 def get_password(key: str):
     if key not in passwords:
-        matched_passwords = [p for p in passwords if re.match(p, key)]
+        if key is not None:
+            matched_passwords = [p for p in passwords if re.match(p, key)]
+        else:
+            matched_passwords=[]
         if len(matched_passwords) == 0:
-            passwords[key] = getpass.getpass(f"Enter password to {key}: ")
+            passwords[key] = getpass.getpass(f"Enter password"+ (f" to {key}"  if key is not None else "") +":")
         else:
             return passwords[matched_passwords[0]]
     return passwords[key]

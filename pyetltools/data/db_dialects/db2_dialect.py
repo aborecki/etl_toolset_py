@@ -56,8 +56,8 @@ class DB2DBDialect(DBDialect):
         # jdbc:db2://DB2Connect.bec.dk:50000/CD99
         ret = "jdbc:" + self.get_jdbc_subprotocol() + "://"
         ret = ret + host
-        ret = ret + ":" + str(port)
-
+        ret = ret + ":" + str(port) +"/"
         if data_source is not None:
-            ret = ret + f"/{data_source}"
+            ret = ret + f"{data_source}"
+        ret=ret+":useJDBC4ColumnNameAndLabelSemantics=false;"
         return ret

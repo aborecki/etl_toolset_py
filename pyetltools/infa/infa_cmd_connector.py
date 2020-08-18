@@ -1,6 +1,7 @@
 from pyetltools.core import connector
 from pyetltools.core.connector import Connector
-
+import os
+from pyetltools.infa import lib
 
 
 class InfaCmdConnector(Connector):
@@ -35,6 +36,11 @@ class InfaCmdConnector(Connector):
     def run_pmrep_export_workflow(self, workflow, folder, output_file):
         self.run_pmrep_connect()
         return self.run_pmrep("objectexport", "-n", workflow, "-o", "workflow", "-f", folder, "-m", "-s", "-b", "-r",
+                              "-u", output_file)
+
+    def run_pmrep_export_object(self, obj_name, obj_type, folder, output_file):
+        self.run_pmrep_connect()
+        return self.run_pmrep("objectexport", "-n", obj_name, "-o", obj_type, "-f", folder, "-m", "-s", "-b", "-r",
                               "-u", output_file)
 
     # def run_pmrep_export_query(self, query, output_file):
@@ -77,7 +83,22 @@ class InfaCmdConnector(Connector):
         self.run_pmrep_connect()
         return self.run_pmrep("deletequery", "-n", query_name,"-t",query_type,"-f")
 
-    def convert_log_bin_to_xml(self, xml_file_path):
-        self.run_pmrep_connect()
-        res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{xml_file_path}")
+    def convert_log_bin_to_xml(self, bin_file_input_path, xml_output=None):
+        if not  xml_output:
+            res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{bin_file_input_path}")
+        else:
+            res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{bin_file_input_path}","-lo", f"{xml_output}")
+        return res
+
+    def convert_log_bin_to_xml_and_parse(self, bin_file_input_path, output_file , use_converted_files=False, overwrite_converted_files=False, output_only_matched=True):
+        res=None
+        if os.path.isfile(output_file) and use_converted_files:
+            pass
+        else:
+            if os.path.isfile(output_file) and not overwrite_converted_files:
+                raise Exception("File "+ output_file + " already exists. Set parameter use_converted_files or overwrite_converted_files to True." )
+            else:
+                res = self.convert_log_bin_to_xml(bin_file_input_path, output_file)
+        parsed = lib.parse_infa_log(output_file, output_only_matched=output_only_matched)
+        return (res, parsed)
 

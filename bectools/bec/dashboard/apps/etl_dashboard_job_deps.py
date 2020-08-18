@@ -15,24 +15,22 @@ from  bectools import connectors as con
 from  bectools import connectors as con
 from bectools.bec import datasources
 
+from bectools.bec.dashboard.app import app
 
-def get_opc_dependencies_dataset( opc_jobname='%'):
-    return datasources.get_opc_dependencies_dataset( opc_jobname)
 
-df=get_opc_dependencies_dataset(opc_jobname="XXXXXX").get_pandas_df()
-app = dash.Dash(__name__)
-
-app.layout = html.Div([
+df_succ=datasources.get_opc_dependencies_succ_pd_df(condition="1=0")
+df_pred=datasources.get_opc_dependencies_pred_pd_df(condition="1=0")
+layout = html.Div([
     dcc.Input(
         id="input_opc_jobname_name"
     ),
-    html.Button("Submit", id='submit', n_clicks=0),
+    html.Button("Submit", id='submit_opc_deps', n_clicks=0),
     dash_table.DataTable(
-        id='datatable-opc_deps',
+        id='datatable-opc_deps_succ',
         columns=[
-            {"name": i, "id": i, "deletable": True, "selectable": True} for i in df.columns
+            {"name": i, "id": i, "deletable": True, "selectable": True} for i in df_succ.columns
         ],
-        data=df.to_dict('records'),
+        data=df_succ.to_dict('records'),
         editable=True,
         filter_action="native",
         sort_action="native",
@@ -45,6 +43,25 @@ app.layout = html.Div([
         page_action="native",
         page_current= 0,
         page_size= 100,
+    ),
+    dash_table.DataTable(
+        id='datatable-opc_deps_pred',
+        columns=[
+            {"name": i, "id": i, "deletable": True, "selectable": True} for i in df_pred.columns
+        ],
+        data=df_pred.to_dict('records'),
+        editable=True,
+        filter_action="native",
+        sort_action="native",
+        sort_mode="multi",
+        column_selectable="single",
+        row_selectable="multi",
+        row_deletable=True,
+        selected_columns=[],
+        selected_rows=[],
+        page_action="native",
+        page_current=0,
+        page_size=100,
     ),
     html.Div(id='datatable-interactivity-container')
 ])
@@ -59,11 +76,13 @@ def update_styles(selected_columns):
         'background_color': '#D2F3FF'
     } for i in selected_columns]
 
-@app.callback(Output('datatable-opc_deps', 'data' ),[Input('submit',"n_clicks")], [State('input_opc_jobname_name', 'value')])
-def update_selection(dummy,wf_name):
-    df = get_opc_dependencies_dataset(wf_name)
+@app.callback(Output('datatable-opc_deps_pred', 'data' ),[Input('submit_opc_deps',"n_clicks")], [State('input_opc_jobname_name', 'value')])
+def update_selection(dummy,opc):
+    df = datasources.get_opc_dependencies_pred_pd_df(opc)
     return df.to_dict('records')
 
+@app.callback(Output('datatable-opc_deps_succ', 'data' ),[Input('submit_opc_deps',"n_clicks")], [State('input_opc_jobname_name', 'value')])
+def update_selection2(dummy,opc):
+    df = datasources.get_opc_dependencies_succ_pd_df(opc)
+    return df.to_dict('records')
 
-if __name__ == '__main__':
-    app.run_server(debug=True)

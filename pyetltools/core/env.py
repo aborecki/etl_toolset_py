@@ -1,11 +1,12 @@
 import pyetltools
 
 from pyetltools.core import connector
+from pyetltools.core.connector import Connector
 
 
-
-class EnvManager:
-    def __init__(self ):
+class EnvManager(Connector):
+    def __init__(self, key ):
+        super().__init__(key)
         self._connectors={}
 
 

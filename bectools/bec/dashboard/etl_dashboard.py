@@ -8,14 +8,14 @@ cf.go_offline()
 
 import pandas as pd
 
-wf_names = list(_.DB.PROD.SQL_PC_REP.DS.D00000PD10_PWC_REP_PROD.run_query_pandas_dataframe(f"""
+wf_names = list(_.DB.PROD.SQL_PC_REP.DS.D00000PD10_PWC_REP_PROD.query_pandas(f"""
     SELECT  distinct left(workflow_name, len(workflow_name)-charindex('_', reverse(workflow_name)) ) workflow_name
     FROM  [BEC_TASK_INST_RUN]
     where START_TIME > '2019-01-01' and run_err_code =0 and task_type_name = 'Session'
 """)["workflow_name"])
 
 def get_task_names(wf_name):
-    return list(_.DB.PROD.SQL_PC_REP.DS.D00000PD10_PWC_REP_PROD.run_query_pandas_dataframe(f"""
+    return list(_.DB.PROD.SQL_PC_REP.DS.D00000PD10_PWC_REP_PROD.query_pandas(f"""
     SELECT  distinct task_name
     FROM  [BEC_TASK_INST_RUN]
     where START_TIME > '2019-01-01' and run_err_code =0 and task_type_name = 'Session'
@@ -27,7 +27,7 @@ def get_task_names(wf_name):
 
 def get_executions(dropdown_values, wf_name):
     cond=",".join([f"'{i}'" for i in dropdown_values])
-    executions = _.DB.SQLPROD_PC_REP.DS.D00000PD10_PWC_REP_PROD.run_query_pandas_dataframe(f"""
+    executions = _.DB.SQLPROD_PC_REP.DS.D00000PD10_PWC_REP_PROD.query_pandas(f"""
     select cast(start_time as date) start_time, workflow_name, task_name, sum(targ_success_rows) targ_success_rows
     from 
     (    

@@ -1,13 +1,11 @@
 import os
 import re
-from functools import reduce
 import winsound
 
 
 from bectools.bec.data.sql import recon
-from bectools.bec.enums import ResourceType, Env
+from bectools.bec.core.env import ResourceType, Env
 from pyetltools.core import connector
-from pyetltools.core.cmd import Cmd
 from pyetltools.core.connector import Connector
 import bectools.bec.data.sql.meta as sql_meta
 import bectools.bec.data.sql.recon as sql_recon
@@ -19,7 +17,25 @@ def input_YN( prompt):
         ans = input(prompt).upper()
     return ans == 'Y'
 
+import functools
 
+class RetryDecorator(object):
+    def __init__(self):
+        pass
+    def __call__(self, fn):
+        @functools.wraps(fn)
+        def decorated(*args, **kwargs):
+            retry=True
+            while retry:
+                try:
+                    result = fn(*args, **kwargs)
+                    return result
+                except Exception as ex:
+                    print("Exception {0}".format(ex))
+                    retry=input_YN("Do you want to retry?")
+                    if not retry:
+                        raise ex
+        return decorated
 
 class Recon:
     def __init__(self, connector):
@@ -64,7 +80,7 @@ class Deployment:
         with open(path, 'w') as f:
             f.write(content_new)
 
-
+    @RetryDecorator()
     def hg_deploy_file_change_commit(self, repository, label, tag):
 
 
@@ -78,7 +94,7 @@ class Deployment:
             use_clonevar=input_YN("Do you want to use clonevar?")
             use_clonelist=input_YN("Do you want to use clonelist?")
 
-        deploy_file_path=os.path.join(repository_dir,"PWC_deploy.txt")
+        deploy_file_path=os.path.join(self.hg_connector.get_working_dir(),"PWC_deploy.txt")
 
         self.hg_deploy_file_set_label(deploy_file_path, label,
                                       modify_cloning=modify_cloning, clonevar=use_clonevar, clonelist=use_clonelist)
@@ -128,7 +144,7 @@ class Deployment:
                 self.infa_connector.create_label(label)
         else:
             print(f"Label {label} exists.")
-            if confirm_all_safe or input_YN(f"Do you want to re-deploy label {label} to {target_env}?") :
+            if confirm_all_safe or input_YN(f"Do you want to reuse label {label} to {target_env}?") :
                 pass
             else:
                 print("Done.")
@@ -208,7 +224,7 @@ class Deployment:
         return ret
 
 
-    def deploy_infa_by_labels(self, target_envs, label, confirm_all_safe=False, confirm_do_not_modify_pwc_deploy=False):
+    def deploy_infa_by_label_for_multiple_envs(self, target_envs, label, confirm_all_safe=False, confirm_do_not_modify_pwc_deploy=False):
 
         for env in target_envs:
             ret=self.deploy_infa_by_label(env, label, confirm_all_safe,
@@ -223,7 +239,6 @@ class Deployment:
         winsound.Beep(int(min(max(freq, 28), 32766)), int(length))
 
     def play_success_sound(self):
-
         self.tone(523, 231.480833333, "Playing Tone: 523 = C5 minus 1 cents")
         self.tone(440, 231.480833333, "Playing Tone: 440 = A4 plus 0 cents")
         self.tone(391, 231.480833333, "Playing Tone: 391 = G4 minus 4 cents")
@@ -257,7 +272,7 @@ class BECConnector(Connector):
     def get_bank_koncern_map_pd(self):
         sql= sql_meta.sql_ftst2_bank_koncern()
         print("SQL:\n"+sql)
-        return self.env_manager.get_connector(ResourceType.DB,Env.FTST2,"NZ").run_query_pandas_dataframe(sql)
+        return self.env_manager.get_connector(ResourceType.DB,Env.FTST2,"NZ").query_pandas(sql)
 
     def recon_add_aggregate_foreign_key(self, table_name, column_name):
          sql = sql_recon.ftst2_insert_aggregate_foreign_key(table_name, column_name)

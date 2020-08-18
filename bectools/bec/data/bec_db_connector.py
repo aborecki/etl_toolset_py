@@ -26,7 +26,7 @@ class BECDBConnector(DBConnector):
     def sqlerver_wflow_run_inst(self, wf_run_id):
         sql = self.sql.monitoring.sqlerver_wflow_run_inst(wf_run_id)
         print("SQL:\n" + sql)
-        return self.run_query_pandas_dataframe(sql)
+        return self.query_pandas(sql)
 
 
 

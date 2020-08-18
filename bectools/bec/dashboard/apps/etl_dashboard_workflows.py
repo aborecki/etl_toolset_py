@@ -15,18 +15,19 @@ from  bectools import connectors as con
 from  bectools import connectors as con
 from bectools.bec import datasources
 
+from bectools.bec.dashboard.app import app
 
-def get_workflows( workflow_name="%", subject_area="%", opc_jobname='%'):
-    return datasources.get_workflows_pd_df(workflow_name, subject_area, opc_jobname)
+def get_workflows( workflow_name="%", subject_area="%", opc_jobname='%', condition="1=1"):
+    return datasources.get_workflows_pd_df(workflow_name, subject_area, opc_jobname, condition)
 
-df=get_workflows(workflow_name="XXXXXX")
-app = dash.Dash(__name__)
+df=get_workflows(condition="1=0")
 
-app.layout = html.Div([
+
+layout = html.Div([
     dcc.Input(
         id="input_workflow_name"
     ),
-    html.Button("Submit", id='submit', n_clicks=0),
+    html.Button("Submit", id='submit_workflows', n_clicks=0),
     dash_table.DataTable(
         id='datatable-workflows',
         columns=[
@@ -59,11 +60,9 @@ def update_styles(selected_columns):
         'background_color': '#D2F3FF'
     } for i in selected_columns]
 
-@app.callback(Output('datatable-workflows', 'data' ),[Input('submit',"n_clicks")], [State('input_workflow_name', 'value')])
+@app.callback(Output('datatable-workflows', 'data' ),[Input('submit_workflows',"n_clicks")], [State('input_workflow_name', 'value')])
 def update_selection(dummy,wf_name):
     df = get_workflows(wf_name)
     return df.to_dict('records')
 
 
-if __name__ == '__main__':
-    app.run_server(debug=True)

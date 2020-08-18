@@ -63,12 +63,15 @@ class SparkConnector(Connector):
         df.persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
         return df
 
+    def pandas_to_spark(self, pandas_df):
+        return pandas_to_spark(self.get_spark_session(), pandas_df)
+
 
 
 # Auxiliary functions
 def equivalent_type(f):
     if f == 'datetime64[ns]':
-        return DateType()
+        return TimestampType()
     elif f == 'int64':
         return LongType()
     elif f == 'int32':

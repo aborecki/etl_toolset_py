@@ -29,7 +29,7 @@ class DBDialect:
             ret = ret + f"PORT={port};"
         if data_source is not None:
             ret = ret + f"DATABASE={data_source};"
-        if dsn is not None:
+        if username is not None:
             ret = ret + f"UID={username};"
         if odbc_driver is not None:
             ret = ret + f"Driver={{{odbc_driver}}};"

@@ -18,6 +18,11 @@ def df_to_csv(df, output_dir):
 
 
 def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], include_columns=[], mode=1, add_diff_cont_cols=False):
+
+    from collections import namedtuple
+
+    ComparisionReport = namedtuple("ComparisionRaport", ["counts_are_equal","left_count","right_count","diff_count", "mode", "comp_details"])
+
     if 1 > mode > 3:
         print("Allowed modes 1 (counts only), 2 (only counts for content), 3 (full - content)")
 
@@ -27,30 +32,38 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
     left_cnt = left_df.count();
     right_cnt = right_df.count();
 
+
     if left_cnt != right_cnt:
+        counts_are_equal=False
         print("Datasets counts are not equal.")
         print("Left count: " + str(left_cnt))
         print("Right count: " + str(right_cnt))
         print("Difference: " + str(right_cnt - left_cnt))
     else:
+        counts_are_equal = True
         print("Datasets counts equal.")
         print("Left/right count:" + str(left_cnt))
 
-    left_key_dist_cnt = left_df.select([x for x in key_fields]).distinct().count()
-    right_key_dist_cnt = right_df.select([x for x in key_fields]).distinct().count()
-    stop = False;
-    print()
-    if left_key_dist_cnt != left_cnt:
-        print("Key columns (" + str(key_fields) + ") do not distinct in left dataset")
-        stop = True
-    if right_key_dist_cnt != right_cnt:
-        print("Key columns (" + str(key_fields) + ") do not distinct in right dataset")
-        stop = True
-    if stop:
-        return
+
+    if len(key_fields) >0:
+        left_key_dist_cnt = left_df.select([x for x in key_fields]).distinct().count()
+        right_key_dist_cnt = right_df.select([x for x in key_fields]).distinct().count()
+        stop = False;
+        print()
+        if left_key_dist_cnt != left_cnt:
+            print("Key columns (" + str(key_fields) + ") do not distinct in left dataset")
+            stop = True
+        if right_key_dist_cnt != right_cnt:
+            print("Key columns (" + str(key_fields) + ") do not distinct in right dataset")
+            stop = True
+        if stop:
+            return
 
     if mode == 1:
-        return;
+        return ComparisionReport(counts_are_equal, left_cnt, right_cnt, right_cnt - left_cnt, mode, None);
+
+    if len(key_fields) == 0:
+        print("No keys defined")
 
     common_cols = sorted(set(left_df.columns).intersection(right_df.columns), key=lambda x: left_df.columns.index(x))
     common_cols = [x for x in common_cols if x not in exclude_columns]
@@ -63,7 +76,7 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
         select_cols = common_cols
 
 
-    join_res_df = left_df.select(select_cols).join(right_df.select(select_cols), join_cond, how="full")
+    join_res_df = left_df.join(right_df, join_cond, how="full")
 
     # F.when(df.age > 4, 1).when(df.age < 3, -1).otherwise(0)
     join_res_df = join_res_df.withColumn("left_missing",
@@ -152,7 +165,7 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
                                       [x for x in join_res_df.columns if x not in right_df.columns and x not in left_df.columns]]
                                      )
 
-    return join_res_df;
+    return ComparisionReport(counts_are_equal, left_cnt, right_cnt, right_cnt - left_cnt, mode, join_res_df)
 
 
 

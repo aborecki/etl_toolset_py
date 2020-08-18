@@ -1,5 +1,5 @@
 #configuration files - may contain sensitive data
-bectools/bec_passwords.py
+../bec_tasks/bec_passwords.py
 bectools/bec_config.py
 
 ../bec_tasks/notebooks/
