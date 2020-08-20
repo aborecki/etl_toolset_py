@@ -6,9 +6,16 @@ import bectools as bt
 
 
 
-def get_target_tables(workflow_name ):
-    df=con.ENV.get_nz_meta_db_connector().query_pandas(
-        f"select * from meta.wf_relations where upper(object_name) like upper('%{workflow_name}%') and table_type='TARGET'")
+def get_target_tables(workflow_names ):
+    if isinstance(workflow_names, str):
+        workflow_names = [workflow_names]
+    cond = "(" + " OR ".join(
+        [f""" upper(object_name) LIKE UPPER('{workflow_name}') """ for workflow_name in workflow_names]) + ")"
+    query= f"select * from meta.wf_relations where ({cond}) and table_type='TARGET'"+\
+           f" AND table_name not in ('DUMMY_TABLE_FOR_APPLY','TDM_LOAD_LOG','DUMMY_NUL_TRG') and db_layer <> 'FLAT_FILE'"
+    print(query)
+    df=con.ENV.get_nz_meta_db_connector().query_pandas(query
+      )
     return (set(df["TABLE_NAME"]), df)
 
 
@@ -18,66 +25,38 @@ def get_source_tables(workflow_name ):
     return (set(df["TABLE_NAME"]), df)
 
 
-def to_pandas(l, columns):
-    import pandas
-    d = pandas.DataFrame(l)
-    d = d.rename(columns=dict([(i,c) for i,c in enumerate(columns)]))
-    return d
+def get_banks_for_wfs(workflow_names):
+    if isinstance(workflow_names, str):
+        workflow_names = [workflow_names]
+    cond = "(" + " OR ".join(
+        [f""" upper(WORKFLOW_NAME) LIKE UPPER('{workflow_name}') """ for workflow_name in workflow_names]) + ")"
+    query=   f"""select DISTINCT lkp.KONCERN_BANK_R, lkp.BANK_I, lkp.BANK_R, lkp.KOERSEL_R
+                                                    --, bs.VALID_FROM, bs.VALID_TO, bs.SOLUTION_I, WORKFLOW_NAME
+                                                    from META.CNF_PWC_WORKFLOW wf 
+                                                    INNER JOIN META.CNF_PWC_GROUP gr ON (wf.PWC_GROUP_I = gr.PWC_GROUP_I)
+                                                    INNER JOIN META.CNF_BANK_SOLUTION bs ON (gr.SOLUTION_I = bs.SOLUTION_I)
+                                                    INNER JOIN META.CNF_KONCERN lkp ON (lkp.KONCERN_BANK_R = bs.BANK_R)
+                                                    WHERE {cond}
+                                                    ORDER BY 1,2
+                                                    """
+    print(query)
+    banks = con.DB.FTST2.NZ.DS.FTST2_META.query_pandas(query
+      )
+    return banks
+
 
 def get_workflow_runs_ids(runs):
     run_ids = set(runs["WORKFLOW_RUN_ID"])
     return (run_ids, runs)
 
 
-def get_search_condition(workflow_name, task_name=None, last_days=1, start_time_from=None, start_time_end=None):
-    cond=f""" UPPER(WORKFLOW_NAME) LIKE UPPER('{workflow_name}') """
-    if start_time_from:
-        cond += f""" AND START_TIME >'{start_time_from}'"""
-    if start_time_end:
-        cond += f""" AND START_TIME <'{start_time_end}'"""
-    if  start_time_end is None and start_time_end is None:
-        cond += f""" AND START_TIME > DATEADD(D,-({last_days}-1),CAST(GETDATE() AS DATE))"""
-        #--AND START_TIME > DATEADD(D,-{last_days},(SELECT MAX(CAST(START_TIME AS DATE) )  FROM BEC_TASK_INST_RUN WHERE UPPER(WORKFLOW_NAME) LIKE UPPER('%{workflow_name}%')))
-    if task_name:
-        cond += f""" AND TASK_NAME  LIKE '{task_name}'"""
-    return cond
-
-def search_workflow_task_runs(env, workflow_name, task_name=None, last_days=1, start_time_from=None, start_time_end=None):
-    db_con=con.ENV.get_pc_rep_db_connector(env)
-
-    cond=get_search_condition(workflow_name, task_name, last_days, start_time_from, start_time_end)
-    query = f"""
-        SELECT  DISTINCT CAST(START_TIME AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, TASK_NAME, MAPPING_NAME, START_TIME, END_TIME, OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
-        CASE WHEN ISNUMERIC(BANKNR)=1 THEN BANKNR ELSE '' END BANKNR, LOG_FILE, RUN_ERR_MSG, RUN_STATUS_CODE, SRCTGT_COUNT 
-            FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANKNR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
-        ORDER BY 1,3,2
-        """
-    runs = db_con.query_pandas(query)
-    ids= set(runs["WORKFLOW_RUN_ID"])
-    return SearchResult(runs=runs, ids=ids)
-
-SearchResult = namedtuple("SearchResult", "runs ids")
-def search_workflow_runs(env, workflow_name, last_days=1, start_time_from=None, start_time_end=None):
-
-    db_con=con.ENV.get_pc_rep_db_connector(env)
-    cond = get_search_condition(workflow_name, None,last_days, start_time_from, start_time_end)
-    query = f"""
-        SELECT  DISTINCT CAST(MIN(START_TIME) AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, MIN(START_TIME) MIN_START_TIME, MAX(END_TIME) MAX_END_TIME, OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
-        MAX(CASE WHEN ISNUMERIC(BANKNR)=1 THEN BANKNR ELSE '' END) BANKNR, MAX(RUN_ERR_MSG) MAX_RUN_ERR_MSG , MAX(RUN_STATUS_CODE) MAX_RUN_STATUS_CODE, SUM(SRCTGT_COUNT) SUM_SRCTGT_COUNT 
-            FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANKNR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
-        GROUP BY WORKFLOW_RUN_ID, WORKFLOW_NAME, CAST(START_TIME AS DATE),     
-                 OPC_JOBNAME, SERVER_NAME, SUBJECT_AREA
-                 ORDER BY 1,3,2"""
-    runs = db_con.query_pandas(query)
-    ids= set(runs["WORKFLOW_RUN_ID"])
-    return SearchResult(runs=runs, ids=ids)
 
 
 def compare_session_logs(left_env, right_env, wf_name_left, wf_name_right, task_name, output_dir, last_days=1, start_time_from=None, start_time_end=None):
     import os
-    left_runs = search_workflow_task_runs(left_env, wf_name_left, task_name,
+    left_runs = con.BEC.monitoring.search_workflow_task_runs(left_env, wf_name_left, task_name,
                                                  last_days, start_time_from, start_time_end)
-    right_runs = search_workflow_task_runs(right_env, wf_name_right, task_name,
+    right_runs =  con.BEC.monitoring.search_workflow_task_runs(right_env, wf_name_right, task_name,
                                                 last_days, start_time_from, start_time_end)
     left_logs = get_workflow_logs(left_runs.runs, use_converted_files=True,
                                          output_dir=os.path.join(output_dir,left_env))
@@ -288,9 +267,6 @@ def get_workflow_logs(runs, use_converted_files=True, overwrite_converted_files=
     return Logs(runs, res)
 
 
-def get_workflow_runs_for_today(WF_NAME):
-    prod_runs = search_workflow_task_runs(con.DB.PROD.SQL.PC_REP, WF_NAME,
-                                                start_time_from='2020-08-06', start_time_end="2020-08-07")
 
 def compare_table_counts(table_df, src_db_con, tested_db_con, banks, src_db_suffix, tested_db_suffix):
 
@@ -348,10 +324,22 @@ def recon_compare_tables(left_db_connector, left_table_name,  right_db_connector
     right_df = right_db_connector.query_spark(f"""select * from {right_table_name}
         where opret_wf_run_i in ({right_workflow_run_ids_csv}) or ret_wf_run_i in ({right_workflow_run_ids_csv})""")
 
-    return con.SPARK.spark_helper.compare_dataframes(left_df, right_df,
+    return con.SPARK.spark_tools.compare_dataframes(left_df, right_df,
                                         key_fields=keys,
                                         exclude_columns=[], mode=1)
 
+
+def compare_table_counts(left_db_connector, left_table_name,  right_db_connector, right_table_name, left_table_cond, right_table_cond):
+    print("comparing table counts:" + left_table_name + " " + right_table_name )
+
+    left_df = left_db_connector.query_spark(f"""select * from {left_table_name}
+        where {left_table_cond}""")
+
+    right_df = right_db_connector.query_spark(f"""select * from {right_table_name}
+        where {right_table_cond}""")
+
+    return con.SPARK.spark_tools.compare_dataframes(left_df, right_df,
+                                                    exclude_columns=[], mode=1)
 
 def compare_tables_for_banks(left_db_connector, right_db_connector,
                              left_database_pattern, right_database_pattern,

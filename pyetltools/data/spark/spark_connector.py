@@ -6,7 +6,7 @@ from pyspark.sql.types import *
 
 from pyetltools.core import connector
 from pyetltools.core.connector import Connector
-from pyetltools.data.spark import spark_helper
+from pyetltools.data.spark import tools as spark_tools
 
 
 class SparkConnector(Connector):
@@ -40,7 +40,7 @@ class SparkConnector(Connector):
         self.options = options
         self._sql = None
         self._spark_session = None
-        self.spark_helper = spark_helper
+        self.spark_tools = spark_tools
 
     def validate_config(self):
         super().validate_config()

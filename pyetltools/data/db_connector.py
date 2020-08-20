@@ -8,7 +8,7 @@ import jaydebeapi
 from pyetltools.core import connector
 from pyetltools.core.attr_dict import AttrDict
 from pyetltools.core.connector import Connector
-from pyetltools.data.spark import spark_helper
+
 from sys import stderr
 import string
 
@@ -312,10 +312,10 @@ class DBConnector(Connector):
         else:
              if self.jdbc_access_method=="spark":
                 print("\nWarning: conversion from spark df to pandas needed.")
-                return self.query_spark(query).toPandas()
+                return self.query_spark(statement).toPandas()
              else:
                 print("\nUsing jaydebeapi jdbc access method")
-                return self.read_jdbc_to_pd_df(query, self.jdbc_driver, self.get_jdbc_conn_string(),[self.username, self.get_password()])
+                return self.read_jdbc_to_pd_df(statement, self.jdbc_driver, self.get_jdbc_conn_string(),[self.username, self.get_password()])
 
 
     def get_databases_by_name_part(self, name_part):

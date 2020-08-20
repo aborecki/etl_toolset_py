@@ -1,8 +1,10 @@
 import logging
 import sys
 
-import pyetltools.data.pandas.pandas_helper as  pandas_helper
-import pyetltools.data.spark.spark_helper as spark_helper
+import pyetltools.data.pandas.tools as pandas_tools
+import pyetltools.data.spark.tools as spark_tools
+import pyetltools.tools.misc as misc_tools
+import pyetltools.tools.test as test_tools
 from pyetltools.core import connector
 
 

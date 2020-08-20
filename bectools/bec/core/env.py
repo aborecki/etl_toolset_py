@@ -51,6 +51,9 @@ class BECEnvManager(EnvManager):
     def get_nz_meta_db_connector(self):
         return self.get_connector(ResourceType.DB, Env.FTST2, "NZ/META")
 
+    def get_mainframe_meta_db_connector(self):
+        return self.get_connector(ResourceType.DB, Env.PROD, "DB2/CD99")
+
     def add_connector(self, resource_type, environment=None, resource_sub_id=None, connector=None):
 
         assert connector is not None, "Connector cannot be None"

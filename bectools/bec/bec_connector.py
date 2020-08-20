@@ -48,6 +48,72 @@ class Recon:
         self.parent_connector.env_manager.get_connector(ResourceType.JENKINS, Env.FTST2).bec_start_push_recon(date)
 
 
+
+class Monitoring:
+
+    def __init__(self, connector):
+        self.parent_connector=connector
+        self.infa_connector = self.parent_connector.env_manager.get_connector(ResourceType.INFA, Env.DEV)
+        self.hg_connector = self.parent_connector.env_manager.get_connector(ResourceType.HG)
+        self.infa_connector =  self.parent_connector.env_manager.get_connector(ResourceType.INFA, Env.DEV)
+
+    from collections import namedtuple
+    SearchResult = namedtuple("SearchResult", "runs ids")
+
+    def get_search_condition(self, workflow_names, task_name=None, last_days=1, start_time_from=None, start_time_end=None):
+        if isinstance(workflow_names, str):
+            workflow_names=[workflow_names]
+        cond = "("+ " OR ".join([f""" UPPER(WORKFLOW_NAME) LIKE UPPER('{workflow_name}') """ for workflow_name in workflow_names])+")"
+        if start_time_from:
+            cond += f""" AND START_TIME >'{start_time_from}'"""
+        if start_time_end:
+            cond += f""" AND START_TIME <'{start_time_end}'"""
+        if start_time_end is None and start_time_end is None:
+            cond += f""" AND START_TIME > DATEADD(D,-({last_days}-1),CAST(GETDATE() AS DATE))"""
+            # --AND START_TIME > DATEADD(D,-{last_days},(SELECT MAX(CAST(START_TIME AS DATE) )  FROM BEC_TASK_INST_RUN WHERE UPPER(WORKFLOW_NAME) LIKE UPPER('%{workflow_name}%')))
+        if task_name:
+            cond += f""" AND TASK_NAME  LIKE '{task_name}'"""
+
+        return cond
+
+    def search_workflow_task_runs(self, env, workflow_name, task_name=None, last_days=1, start_time_from=None,
+                                  start_time_end=None):
+        db_con = self.parent_connector.env_manager.get_pc_rep_db_connector(env)
+
+        cond = self.get_search_condition(workflow_name, task_name, last_days, start_time_from, start_time_end)
+        query = f"""
+            SELECT  DISTINCT CAST(START_TIME AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, TASK_NAME, MAPPING_NAME, START_TIME, END_TIME, OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
+            CASE WHEN ISNUMERIC(BANKNR)=1 THEN BANKNR ELSE '' END BANKNR, LOG_FILE, RUN_ERR_MSG, RUN_STATUS_CODE, SRCTGT_COUNT 
+                FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANKNR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
+            ORDER BY 1,3,2
+            """
+        print("Search query: " + query)
+        runs = db_con.query_pandas(query)
+        ids = set(runs["WORKFLOW_RUN_ID"])
+        return Monitoring.SearchResult(runs=runs, ids=ids)
+
+    def search_workflow_runs(self, env, workflow_name, last_days=1, start_time_from=None, start_time_end=None):
+        db_con = self.parent_connector.env_manager.get_pc_rep_db_connector(env)
+        cond = self.get_search_condition(workflow_name, None, last_days, start_time_from, start_time_end)
+
+        query = f"""
+            SELECT  DISTINCT CAST(MIN(START_TIME) AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, MIN(START_TIME) MIN_START_TIME, MAX(END_TIME) MAX_END_TIME, 
+            CASE WHEN SUM(CASE WHEN END_TIME IS NULL THEN 1 ELSE 0 END ) >0 THEN 'RUNNING' ELSE 'FINISHED' END  RUNNING_STATUS,
+            OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
+            MAX(CASE WHEN ISNUMERIC(BANKNR)=1 THEN BANKNR ELSE '' END) BANKNR, MAX(RUN_ERR_MSG) MAX_RUN_ERR_MSG , MAX(RUN_STATUS_CODE) MAX_RUN_STATUS_CODE, SUM(SRCTGT_COUNT) SUM_SRCTGT_COUNT 
+                FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANKNR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
+            GROUP BY WORKFLOW_RUN_ID, WORKFLOW_NAME, CAST(START_TIME AS DATE),     
+                     OPC_JOBNAME, SERVER_NAME, SUBJECT_AREA
+                     ORDER BY 1,3,2"""
+        print("Search query: "+query)
+        runs = db_con.query_pandas(query)
+        ids = set(runs["WORKFLOW_RUN_ID"])
+        return Monitoring.SearchResult(runs=runs, ids=ids)
+
+    def get_jcl_for_opcjob_name(self, opc_job_name):
+        return self.parent_connector.env_manager.get_mainframe_meta_db_connector().execute_statement(f"CALL ADMIN_DS_BROWSE(3,'EDBPLA.OPCE.JCLLIB','{opc_job_name}','N',null,null)")
+
+
 class Deployment:
     def __init__(self, connector):
         self.parent_connector=connector
@@ -260,6 +326,7 @@ class BECConnector(Connector):
         self.env_manager = env_manager
         self.recon = Recon(self)
         self.deployment = Deployment(self)
+        self.monitoring = Monitoring(self)
 
     def validate_config(self):
         super().validate_config()

@@ -26,6 +26,9 @@ class EnvManager(Connector):
             raise Exception("Connector not found for "+str(conn_key))
         return self._connectors[conn_key]
 
+    def get_connectors(self):
+        return self._connectors
+
     def validate_config(self):
         for conn in self._connectors.values():
             connector.get(conn)  # try to get connector

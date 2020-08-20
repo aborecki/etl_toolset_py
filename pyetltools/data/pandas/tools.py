@@ -5,8 +5,12 @@ def filter_pandas_dataframe_fields_by_regex(self, regex):
     return self[self.apply(lambda row: row.astype(str).str.contains(regex).any(), axis=1)]
 
 
-pd.DataFrame.filter_by_regex = filter_pandas_dataframe_fields_by_regex
+def filter_pandas_dataframe_field_by_regex(self, column_name, regex):
+    return self[self[column_name].str.contains(regex)]
 
+
+pd.DataFrame.filter_by_regex = filter_pandas_dataframe_fields_by_regex
+pd.DataFrame.filter_column_by_regex = filter_pandas_dataframe_field_by_regex
 
 def save_dataframes_to_excel(dfs, sheet_names, output_file):
     print("Saving dataframes to excel: "+output_file)
@@ -31,4 +35,11 @@ def save_dataframes_to_excel(dfs, sheet_names, output_file):
         worksheet.add_table(0, 0, len(df.index), len(df.columns), {'columns': [{'header':'Idx'}] + [  {'header': c } for c in list(df)   ]})
 
     writer.save()
+
+
+def create_pandas_dataframe(data, columns):
+    import pandas
+    d = pandas.DataFrame(data)
+    d = d.rename(columns=dict([(i,c) for i,c in enumerate(columns)]))
+    return d
 
