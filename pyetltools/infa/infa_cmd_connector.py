@@ -64,8 +64,13 @@ class InfaCmdConnector(Connector):
             return self.run_pmrep("createlabel", "-a", label)
 
 
-    def run_pmcmd_start_workflow(self, integration_service, folder_name, workflow_name):
-        return self.run_pmcmd("startworkflow", "-sv", integration_service, "-f", folder_name,  "-d", self.domain,
+    def run_pmcmd_start_workflow(self, integration_service, folder_name, workflow_name, run_instance=None):
+        if run_instance:
+            return self.run_pmcmd("startworkflow", "-sv", integration_service, "-f", folder_name, "-d", self.domain,
+                                  "-usd", self.security_domain, "-u", self.username, "-p", self.get_password(), "-rin",run_instance,
+                                  workflow_name)
+        else:
+            return self.run_pmcmd("startworkflow", "-sv", integration_service, "-f", folder_name,  "-d", self.domain,
                               "-usd", self.security_domain, "-u", self.username, "-p", self.get_password(), workflow_name)
 
 
