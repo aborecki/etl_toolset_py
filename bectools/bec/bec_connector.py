@@ -10,6 +10,9 @@ from pyetltools.core.connector import Connector
 import bectools.bec.data.sql.meta as sql_meta
 import bectools.bec.data.sql.recon as sql_recon
 from pyetltools.core.env import EnvManager
+import logging
+
+logger = logging.getLogger("bectools")
 
 def input_YN( prompt):
     ans = None
@@ -60,7 +63,7 @@ class Monitoring:
     from collections import namedtuple
     SearchResult = namedtuple("SearchResult", "runs ids")
 
-    def get_search_condition(self, workflow_names, task_name=None, last_days=1, start_time_from=None, start_time_end=None):
+    def get_search_condition(self, workflow_names, task_name=None, last_days=None, start_time_from=None, start_time_end=None):
         if isinstance(workflow_names, str):
             workflow_names=[workflow_names]
         cond = "("+ " OR ".join([f""" UPPER(WORKFLOW_NAME) LIKE UPPER('{workflow_name}') """ for workflow_name in workflow_names])+")"
@@ -68,7 +71,7 @@ class Monitoring:
             cond += f""" AND START_TIME >'{start_time_from}'"""
         if start_time_end:
             cond += f""" AND START_TIME <'{start_time_end}'"""
-        if start_time_end is None and start_time_end is None:
+        if last_days:
             cond += f""" AND START_TIME > DATEADD(D,-({last_days}-1),CAST(GETDATE() AS DATE))"""
             # --AND START_TIME > DATEADD(D,-{last_days},(SELECT MAX(CAST(START_TIME AS DATE) )  FROM BEC_TASK_INST_RUN WHERE UPPER(WORKFLOW_NAME) LIKE UPPER('%{workflow_name}%')))
         if task_name:
@@ -82,13 +85,23 @@ class Monitoring:
 
         cond = self.get_search_condition(workflow_name, task_name, last_days, start_time_from, start_time_end)
         query = f"""
-            SELECT  DISTINCT CAST(START_TIME AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, TASK_NAME, MAPPING_NAME, START_TIME, END_TIME, OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
-            CASE WHEN ISNUMERIC(BANKNR)=1 THEN BANKNR ELSE '' END BANKNR, LOG_FILE, RUN_ERR_MSG, RUN_STATUS_CODE, SRCTGT_COUNT 
-                FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANKNR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
+            SELECT  DISTINCT CAST(START_TIME AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, RUNINST_NAME, TASK_NAME, MAPPING_NAME, START_TIME,
+            END_TIME, 
+            CASE WHEN END_TIME IS NULL THEN 'RUNNING' ELSE 'FINISHED' END  RUNNING_STATUS,
+            OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
+            CASE WHEN ISNUMERIC(BANK_KORSEL_NR)=1 THEN LEFT(WORKFLOW_NAME, LEN(WORKFLOW_NAME)-LEN(BANK_KORSEL_NR)-1) ELSE WORKFLOW_NAME END WORKFLOW_NAME_SHORT,
+            CASE WHEN ISNUMERIC(BANK_KORSEL_NR)=1 THEN BANK_KORSEL_NR ELSE '' END BANK_KORSEL_NR, LOG_FILE, RUN_ERR_MSG, RUN_STATUS_CODE ,
+            TARG_SUCCESS_ROWS,
+            SRC_SUCCESS_ROWS
+            --, SRCTGT_COUNT 
+                FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANK_KORSEL_NR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
             ORDER BY 1,3,2
             """
         print("Search query: " + query)
         runs = db_con.query_pandas(query)
+        runs['DATE_DAY'] = runs['DATE_DAY'].astype('datetime64[ns]')
+        runs['START_TIME'] = runs['START_TIME'].astype('datetime64[ns]')
+        runs['END_TIME'] = runs['END_TIME'].astype('datetime64[ns]')
         ids = set(runs["WORKFLOW_RUN_ID"])
         return Monitoring.SearchResult(runs=runs, ids=ids)
 
@@ -97,16 +110,53 @@ class Monitoring:
         cond = self.get_search_condition(workflow_name, None, last_days, start_time_from, start_time_end)
 
         query = f"""
-            SELECT  DISTINCT CAST(MIN(START_TIME) AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, MIN(START_TIME) MIN_START_TIME, MAX(END_TIME) MAX_END_TIME, 
-            CASE WHEN SUM(CASE WHEN END_TIME IS NULL THEN 1 ELSE 0 END ) >0 THEN 'RUNNING' ELSE 'FINISHED' END  RUNNING_STATUS,
+            WITH src as (
+            SELECT 
+                x.SUBJECT_ID,
+                x.WORKFLOW_ID,
+                x.WORKFLOW_RUN_ID,
+                x.WORKFLOW_NAME,
+                (
+                            SELECT convert(varchar(100),METADATA_EXTN_VALUE)	
+                            FROM  dbo.REP_METADATA_EXTNS AS M
+                            WHERE (METADATA_EXTN_NAME = 'OPC_JOBNAME') 
+                            AND (x.WORKFLOW_ID = METADATA_EXTN_OBJECT_ID) 
+                            AND (x.VERSION_NUMBER = VERSION_NUMBER)
+                        ) AS OPC_JOBNAME, 
+                x.SERVER_ID,
+                x.SERVER_NAME,
+                x.START_TIME,
+                x.END_TIME,
+                x.LOG_FILE,
+                x.RUN_ERR_CODE,
+                x.RUN_ERR_MSG,
+                x.RUN_STATUS_CODE,
+                x.USER_NAME,
+                x.RUN_TYPE,
+                x.VERSION_NUMBER,
+                OPB_SUBJECT.SUBJ_NAME SUBJECT_AREA,
+                x.RUNINST_NAME
+            FROM 
+                OPB_WFLOW_RUN x,
+                OPB_SUBJECT
+            WHERE
+                x.SUBJECT_ID = OPB_SUBJECT.SUBJ_ID
+            )
+            SELECT  CAST(START_TIME AS DATE) DATE_DAY,  WORKFLOW_RUN_ID, WORKFLOW_NAME, RUNINST_NAME, START_TIME, END_TIME, 
+            CASE WHEN END_TIME IS NULL THEN 'RUNNING' ELSE 'FINISHED' END  RUNNING_STATUS,
             OPC_JOBNAME ,SERVER_NAME ,  SUBJECT_AREA,
-            MAX(CASE WHEN ISNUMERIC(BANKNR)=1 THEN BANKNR ELSE '' END) BANKNR, MAX(RUN_ERR_MSG) MAX_RUN_ERR_MSG , MAX(RUN_STATUS_CODE) MAX_RUN_STATUS_CODE, SUM(SRCTGT_COUNT) SUM_SRCTGT_COUNT 
-                FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANKNR FROM BEC_TASK_INST_RUN WHERE {cond}) x 
-            GROUP BY WORKFLOW_RUN_ID, WORKFLOW_NAME, CAST(START_TIME AS DATE),     
-                     OPC_JOBNAME, SERVER_NAME, SUBJECT_AREA
-                     ORDER BY 1,3,2"""
-        print("Search query: "+query)
+            CASE WHEN ISNUMERIC(BANK_KORSEL_NR)=1 THEN LEFT(WORKFLOW_NAME, LEN(WORKFLOW_NAME)-LEN(BANK_KORSEL_NR)-1) ELSE WORKFLOW_NAME END
+            WORKFLOW_NAME_SHORT,
+            CASE WHEN ISNUMERIC(BANK_KORSEL_NR)=1 THEN BANK_KORSEL_NR ELSE '' END BANK_KORSEL_NR, RUN_ERR_MSG , RUN_STATUS_CODE
+            --, SUM(SRCTGT_COUNT) SUM_SRCTGT_COUNT 
+                FROM (SELECT *, RIGHT(WORKFLOW_NAME, CHARINDEX('_', REVERSE(WORKFLOW_NAME))-1 )  BANK_KORSEL_NR 
+            FROM src WHERE {cond}) x 
+            ORDER BY 1,3,2"""
+        logger.debug("Search query: "+query)
         runs = db_con.query_pandas(query)
+        runs['DATE_DAY'] = runs['DATE_DAY'].astype('datetime64[ns]')
+        runs['START_TIME'] = runs['START_TIME'].astype('datetime64[ns]')
+        runs['END_TIME'] = runs['END_TIME'].astype('datetime64[ns]')
         ids = set(runs["WORKFLOW_RUN_ID"])
         return Monitoring.SearchResult(runs=runs, ids=ids)
 

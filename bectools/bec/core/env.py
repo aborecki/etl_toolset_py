@@ -48,8 +48,12 @@ class BECEnvManager(EnvManager):
     def get_pc_rep_db_connector(self, env):
         return self.get_connector(ResourceType.DB, env, "SQL/PC_REP")
 
-    def get_nz_meta_db_connector(self):
+    def get_default_nz_meta_db_connector(self):
         return self.get_connector(ResourceType.DB, Env.FTST2, "NZ/META")
+
+    def get_nz_meta_db_connector(self, env):
+        return self.get_connector(ResourceType.DB,env, "NZ/META")
+
 
     def get_mainframe_meta_db_connector(self):
         return self.get_connector(ResourceType.DB, Env.PROD, "DB2/CD99")

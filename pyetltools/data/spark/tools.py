@@ -173,6 +173,8 @@ def compare_dataframes(left_df, right_df, key_fields, exclude_columns=[], includ
 def equivalent_type(f):
     if f == 'datetime64[ns]':
         return DateType()
+    if f == '<M8[ns]':
+        return DateType()
     elif f == 'int64':
         return LongType()
     elif f == 'int32':
@@ -207,7 +209,7 @@ def pandas_to_spark(spark, pandas_df):
     for column, typo in zip(columns, types):
         struct_list.append(define_structure(column, typo))
     p_schema = StructType(struct_list)
-
+    print(p_schema)
     try:
         return spark.createDataFrame(pandas_df).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
     except:

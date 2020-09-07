@@ -12,7 +12,9 @@ from pyetltools.core.connector import Connector
 from sys import stderr
 import string
 
+import logging
 
+logger = logging.getLogger("bectools")
 
 
 class DBConnector(Connector):
@@ -78,6 +80,7 @@ class DBConnector(Connector):
         return connector.get(self.spark_connector)
 
     def with_data_source(self, data_source):
+
         cp=self.clone()
         cp.data_source=data_source
         return cp
@@ -143,7 +146,7 @@ class DBConnector(Connector):
 
     def query_spark(self, query, registerTempTableName=None):
         if self.supports_jdbc:
-            print("Executing query (JDBC):"+query)
+            logger.debug("Executing query (JDBC):"+query)
             ret=self.get_spark_connector().get_df_from_jdbc(self.get_jdbc_conn_string(),
                                                       query,
                                                       self.db_dialect.get_jdbc_driver(),
@@ -156,7 +159,7 @@ class DBConnector(Connector):
             is_empty = pdf.empty
             ret=None
             if not is_empty:
-                ret = spark_helper.pandas_to_spark(self.get_spark_connector().get_spark_session(), pdf)
+                ret = self.get_spark_connector().pandas_to_spark(pdf)
             else:
                 print("No data returned.")
         if registerTempTableName is not None:
@@ -165,15 +168,17 @@ class DBConnector(Connector):
         return ret
 
     def query_pandas(self, query):
+        logger.debug("Executing query:" + query)
         if self.supports_odbc:
+             logger.debug(" using ODBC")
              conn = pyodbc.connect(self.get_odbc_conn_string())
              return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None)
         else:
              if self.jdbc_access_method=="spark":
-                print("\nWarning: conversion from spark df to pandas needed.")
+                logger.debug("\nWarning: conversion from spark df to pandas needed.")
                 return self.query_spark(query).toPandas()
              else:
-                print("\nUsing jaydebeapi jdbc access method")
+                logger.debug("\nUsing jaydebeapi jdbc access method")
                 return self.read_jdbc_to_pd_df(query, self.jdbc_driver, self.get_jdbc_conn_string(),[self.username, self.get_password()])
 
 
@@ -205,7 +210,7 @@ class DBConnector(Connector):
 
         try:
             curs = conn.cursor()
-            print("Executing:"  +sql, end="")
+            logger.info("Executing:"  +sql)
             curs.execute(sql)
             print("DONE")
             columns = [desc[0] for desc in curs.description]  # getting column headers
@@ -333,6 +338,9 @@ class DBConnector(Connector):
 
     def get_objects(self):
         return self.query_pandas(self.db_dialect.get_sql_list_objects())
+
+    def get_columns_all_objects(self):
+        return self.query_pandas(self.db_dialect.get_sql_list_columns_all_objects())
 
     def get_columns(self, table_name):
         return self.query_pandas(self.db_dialect.get_sql_list_columns(table_name))

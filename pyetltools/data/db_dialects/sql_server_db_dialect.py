@@ -5,15 +5,20 @@ from pyetltools.data.db_dialect import DBDialect
 class SQLServerDBDialect(DBDialect):
 
     def get_sql_list_objects(self):
-        return """select * from INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','VIEW')"""
+        return """select table_name as NAME, CASE table_type WHEN 'BASE TABLE' THEN 'TABLE' ELSE table_type END as TYPE, TABLE_SCHEMA as "SCHEMA", *  from INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','VIEW')"""
 
     def get_sql_list_objects_from_datbases_single_query(self, databases):
         return " UNION ALL \n".join(
-            [f"""select '{db}' as DATABASE_NAME, * from {db}.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','VIEW')""" for db in  databases])
+            [f"""select '{db}' as DATABASE_NAME, table_name as NAME, table_type as TYPE, TABLE_SCHEMA as "SCHEMA", * from {db}.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE IN ('BASE TABLE','VIEW')""" for db in  databases])
 
     def get_sql_list_databases(self):
         return "SELECT name FROM sys.databases"
 
+    def get_sql_list_columns_all_objects(self):
+            return f"""
+                SELECT *
+    FROM INFORMATION_SCHEMA.COLUMNS
+    """
 
     def get_sql_list_columns(self, table_name):
         return f"""

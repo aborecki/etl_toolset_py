@@ -6,6 +6,10 @@ class RemedyConnector(Connector):
         super().__init__(key)
         self.url = url
 
+    def get_link_for_remedy_ticket(self, cr):
+        return  r"https://remedy.intra.bec.dk/arsys/servlet/ViewFormServlet?form=CHG%3AInfrastructure+Change&server=remedy-itsm&qual=%271000000182%27%3D%22"+cr+"%22"
+        #return "https://remedy.intra.bec.dk/arsys/servlet/ViewFormServlet?form=CHG%3AInfrastructure+Change&server=remedy-itsm&qual=%271000000182%27%3D%22"+cr+"%22"
+
     def remove_prefix(self, s, prefix):
         return s[len(prefix):] if s.startswith(prefix) else s
 
@@ -46,7 +50,7 @@ class RemedyConnector(Connector):
             raise Exception("Element not found or text empty")
         return res
 
-    def get_remedy_ticket_info(self, remedy_ticket_no, headless=True):
+    def get_remedy_ticket_info(self, remedy_ticket_no, info_short=False, headless=True):
         driver=None
         try:
             from selenium import webdriver
@@ -93,56 +97,61 @@ class RemedyConnector(Connector):
                      vendor_ticket_number = self.get_text_for_label(driver, "Vendor Ticket Number")
                      )
 
-            jn_info = driver.find_element_by_link_text("JN info")
-            jn_info.click()
-            time.sleep(3)
-            jn_info=dict()
+            if info_short:
+                return ret
+            try:
+                jn_info = driver.find_element_by_link_text("JN info")
+                jn_info.click()
+                time.sleep(3)
+                jn_info=dict()
 
-            text_area = driver.find_element_by_id("arid_WIN_1_536870950")
-            time.sleep(3)
+                text_area = driver.find_element_by_id("arid_WIN_1_536870950")
+                time.sleep(3)
 
 
-            row_i=0
-            column_names=None
-            while True:
-                table = driver.find_element_by_id("T536870947")
-                rows=table.find_elements_by_css_selector("table > tbody > tr")
-                if row_i==len(rows):
-                    break
-                row=rows[row_i]
+                row_i=0
+                column_names=None
+                while True:
+                    table = driver.find_element_by_id("T536870947")
+                    rows=table.find_elements_by_css_selector("table > tbody > tr")
+                    if row_i==len(rows):
+                        break
+                    row=rows[row_i]
 
-                if row_i==0:
-                    v = [td.get_attribute('textContent') for td in row.find_elements_by_xpath(".//th")]
-                    if len(v)==3:
-                        column_names=v
+                    if row_i==0:
+                        v = [td.get_attribute('textContent') for td in row.find_elements_by_xpath(".//th")]
+                        if len(v)==3:
+                            column_names=v
+                        row_i += 1
+                        continue
+                    else:
+                        v = [td.text for td in row.find_elements_by_xpath(".//td")]
                     row_i += 1
-                    continue
-                else:
-                    v = [td.text for td in row.find_elements_by_xpath(".//td")]
-                row_i += 1
-                name, text, mandatory=v
-                row.click()
-                text_area_txt=text_area.get_attribute("value")
-                i=5
-                import re
-                pattern = re.compile(r'\s+')
-                text_area_txt_s = re.sub(pattern, '', text_area_txt)
-                text_s = re.sub(pattern, '', text)
-                while not text_area_txt_s.startswith(text_s):
-                    print(text)
-                    print("text_area"+text_area_txt)
-                    text_area_txt = text_area.get_attribute("value")
+                    name, text, mandatory=v
+                    row.click()
+                    text_area_txt=text_area.get_attribute("value")
+                    i=5
+                    import re
+                    pattern = re.compile(r'\s+')
                     text_area_txt_s = re.sub(pattern, '', text_area_txt)
                     text_s = re.sub(pattern, '', text)
-                    time.sleep(1)
-                    i-=1
-                    if i==0:
-                        raise Exception("Max retries reached.")
-                if column_names:
-                    jn_info[name]=dict(zip(column_names, (text, mandatory, text_area_txt)))
-                else:
-                    jn_info[name] =  (text, mandatory, text_area_txt)
-            ret["JN_info"]=jn_info
+                    while not text_area_txt_s.startswith(text_s):
+                        print(text)
+                        print("text_area"+text_area_txt)
+                        text_area_txt = text_area.get_attribute("value")
+                        text_area_txt_s = re.sub(pattern, '', text_area_txt)
+                        text_s = re.sub(pattern, '', text)
+                        time.sleep(1)
+                        i-=1
+                        if i==0:
+                            raise Exception("Max retries reached.")
+                    if column_names:
+                        jn_info[name]=dict(zip(column_names, (text, mandatory, text_area_txt)))
+                    else:
+                        jn_info[name] =  (text, mandatory, text_area_txt)
+                ret["JN_info"]=jn_info
+            except:
+                print("JN_info not found!")
 
             work_detail = driver.find_element_by_link_text("Work Detail")
             work_detail.click()

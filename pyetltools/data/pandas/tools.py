@@ -43,3 +43,32 @@ def create_pandas_dataframe(data, columns):
     d = d.rename(columns=dict([(i,c) for i,c in enumerate(columns)]))
     return d
 
+
+
+
+def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_compare):
+    import pandas as pd
+
+    left_name="_"+left_name
+    right_name="_"+right_name
+
+
+    compare = pd.merge(df_left, df_right, on=keys, suffixes=[left_name, right_name], indicator="row_source", how="outer")
+    cols = list(df_left.columns)
+
+    def sort_columns(c):
+        cr = c.replace(left_name, "").replace(right_name, "")
+
+        if cr in cols_to_compare:
+            ret= cols_to_compare.index(cr)+ (0 if left_name in c else 1)
+        else:
+            ret= (cols.index(cr)+1) * 100 + (0 if left_name in c else 1)
+
+        return ret
+
+    cols = ["row_source"] + keys + sorted([col for col in compare if col not in keys + ["row_source"]], key=sort_columns)
+    compare_srt = compare[cols]
+    for col_comp in cols_to_compare:
+        compare_srt[col_comp+"_diff"] = ~ (
+                compare_srt[col_comp + left_name] == compare_srt[col_comp + right_name])
+    return compare_srt

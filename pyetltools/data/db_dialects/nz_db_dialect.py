@@ -9,6 +9,11 @@ class NZDBDialect(DBDialect):
               select  SCHEMA,  viewname as NAME, 'VIEW'  as TYPE from _v_view UNION ALL 
               select  SCHEMA,  synonym_name as NAME, 'SYNONYM'  as TYPE from _v_synonym """
 
+    def get_sql_list_columns_all_objects(self):
+        return f"""
+            select * from _v_sys_columns 
+        """
+
     def get_sql_list_columns(self, table_name):
         return f"""
             select * from _v_sys_columns where table_name='{table_name}'

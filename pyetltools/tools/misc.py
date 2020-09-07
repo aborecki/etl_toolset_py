@@ -15,3 +15,16 @@ def capture_stdout(func):
         res=func()
     stdout = f.getvalue()
     return (res,stdout)
+
+
+import time
+
+
+def profile(func):
+    def wrap(*args, **kwargs):
+        started_at = time.time()
+        result = func(*args, **kwargs)
+        print("Profile func:"+func.__name__+" Time (sec):"+str(time.time() - started_at))
+        return result
+
+    return wrap
