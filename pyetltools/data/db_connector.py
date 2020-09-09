@@ -291,7 +291,7 @@ class DBConnector(Connector):
     def execute_statement(self, statement, add_col_names=False, reuse_odbc_connection=False):
 
         if self.supports_odbc:
-            conn = self.get_odbc_connection(reuse_odbc_connection)
+            conn = self.get_odbc_connection(reuse_odbc_connectiongit )
             cursor = conn.cursor()
             cursor.execute(statement)
             res = []
