@@ -8,19 +8,19 @@ import bectools.bec.data.sql.meta as sql_meta
 def get_wf_relations(env="FTST2", force_reload_from_source=False):
     def get_data():
         return con.ENV.get_nz_meta_db_connector(env).query_pandas(
-            f"select * from meta.wf_relations where and table_type in ('SOURCE','LOOKUP')")
+            f"select * from meta.wf_relations where table_type in ('SOURCE','LOOKUP')")
     return con.CACHE.get_from_cache(__name__+inspect.currentframe().f_code.co_name+"_"+env+"_", get_data, force_reload_from_source)
 
-def get_source_tables(env, workflow_name):
+def get_source_tables(workflow_name, env='FTST2', ):
     df=get_wf_relations(env)
     df=df.query(f"OBJECT_NAME.str.contains('{workflow_name}') and (TABLE_TYPE == 'SOURCE' or TABLE_TYPE == 'TARGET')")
     return (set(df["TABLE_NAME"]), df)
 
 
-def get_target_tables(workflow_name ):
+def get_target_tables(workflow_name, env='FTST2' ):
     df=get_wf_relations(env)
-    df=df.query(f"""OBJECT_NAME.str.upper().contains('{workflow_name}') and (TABLE_TYPE == 'SOURCE' or TABLE_TYPE == 'TARGET')
-                AND TABLE_NAME != 'DUMMY_TABLE_FOR_APPLY' AND TABLE_NAME != 'TDM_LOAD_LOG' AND TABLE_NAME != 'DUMMY_NUL_TRG' AND
-                TABLE_NAME !='FLAT_FILE'
-                """)
+    df=df.query(f"""OBJECT_NAME.str.upper().str.contains('{workflow_name}') and (TABLE_TYPE == 'SOURCE' or TABLE_TYPE == 'TARGET')  and TABLE_NAME != 'DUMMY_TABLE_FOR_APPLY' \
+                     and TABLE_NAME != 'TDM_LOAD_LOG' and TABLE_NAME != 'DUMMY_NUL_TRG'  \
+                     and TABLE_NAME !='FLAT_FILE'
+""")
     return (set(df["TABLE_NAME"]), df)

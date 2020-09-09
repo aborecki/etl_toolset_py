@@ -8,6 +8,7 @@ from pyetltools.core import connector
 from pyetltools.data.db_connector import DBConnector
 
 
+
 class BECDBConnector(DBConnector):
 
     def validate_config(self):
@@ -29,5 +30,9 @@ class BECDBConnector(DBConnector):
         return self.query_pandas(sql)
 
 
-
-
+    def query_pandas_cache(self, query, force_reload_from_source=False):
+        import hashlib
+        return bectools.connectors.get("CACHE").get_from_cache("TEMP_QUERY_CACHE_"+self.key +
+                                                               "_"+self.data_source +"_" +query[0:50]+"_"+
+                                                               str(hashlib.md5(query.encode('utf-8')).hexdigest()),
+                                                               lambda : self.query_pandas(query),force_reload_from_source)

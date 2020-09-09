@@ -2,6 +2,12 @@ import logging
 import sys
 import warnings
 
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
+logger = logging.getLogger("bectools")
+logger.setLevel("INFO")
+
+
 from pyetltools import *
 
 import bectools.tools.recon as recon
@@ -10,12 +16,9 @@ import bectools.tools.metadata.release_model as release_model
 import bectools.tools.metadata.db_metadata as db_metadata
 import bectools.tools.metadata.wf_relations as wf_relations
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-logging.getLogger().setLevel(logging.DEBUG)
-logging.getLogger().setLevel(logging.WARNING)
-logging.getLogger("bectools").setLevel("INFO")
-logging.info(__name__ + "__init__.py")
-logger = logging.getLogger("bectools")
+
+
+
 
 import bectools.bec_config
 

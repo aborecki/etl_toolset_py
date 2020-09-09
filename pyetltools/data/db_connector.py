@@ -14,6 +14,8 @@ import string
 
 import logging
 
+from pyetltools.data.spark import tools
+
 logger = logging.getLogger("bectools")
 
 
@@ -72,6 +74,8 @@ class DBConnector(Connector):
         if self.load_db_connectors:
             self.load_db_sub_connectors()
 
+
+
     def validate_config(self):
         super().validate_config()
         connector.get(self.spark_connector)
@@ -86,7 +90,7 @@ class DBConnector(Connector):
         return cp
 
     def clone(self):
-        return DBConnector(key=self.key,
+        return type(self)(key=self.key,
                  jdbc_conn_string=self.jdbc_conn_string,
                  odbc_conn_string=self.odbc_conn_string,
                  host=self.host,
@@ -139,10 +143,11 @@ class DBConnector(Connector):
             self.odbc_driver,
             self.integrated_security)
 
-    def get_odbc_connection(self):
-         #if not self._odbcconnection:
-        return   pyodbc.connect(self.get_odbc_conn_string())
-        #return self._odbcconnection;
+    def get_odbc_connection(self, reuse_odbc_connection=False):
+        if not self._odbcconnection or reuse_odbc_connection==False:
+            self._odbcconnection= pyodbc.connect(self.get_odbc_conn_string())
+
+        return self._odbcconnection;
 
     def query_spark(self, query, registerTempTableName=None):
         if self.supports_jdbc:
@@ -167,11 +172,11 @@ class DBConnector(Connector):
             ret.registerTempTable(registerTempTableName)
         return ret
 
-    def query_pandas(self, query):
+    def query_pandas(self, query, reuse_odbc_connection=False):
         logger.debug("Executing query:" + query)
         if self.supports_odbc:
              logger.debug(" using ODBC")
-             conn = pyodbc.connect(self.get_odbc_conn_string())
+             conn = self.get_odbc_connection(reuse_odbc_connection)
              return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None)
         else:
              if self.jdbc_access_method=="spark":
@@ -283,10 +288,10 @@ class DBConnector(Connector):
         else:
             raise Exception("ODBC support required")
 
-    def execute_statement(self, statement, add_col_names=False):
+    def execute_statement(self, statement, add_col_names=False, reuse_odbc_connection=False):
 
         if self.supports_odbc:
-            conn = self.get_odbc_connection()
+            conn = self.get_odbc_connection(reuse_odbc_connection)
             cursor = conn.cursor()
             cursor.execute(statement)
             res = []
@@ -392,9 +397,9 @@ class DBConnector(Connector):
 
     @classmethod
     def df_to_excel(filename):
-        spark_helper.df_to_excel(filename)
+        tools.df_to_excel(filename)
 
     @classmethod
     def df_to_csv(dir):
-        spark_helper.df_to_csv(dir)
+        tools.df_to_csv(dir)
 
