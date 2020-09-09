@@ -1,3 +1,5 @@
+from pyetltools import logger
+
 def gen_insert(tablename, columns):
     return "insert into "+tablename+" ("+ ",\n".join(["'"+i+"'" for i in  columns])+") values ("+ ",\n".join(["'"+i+"'" for i in  columns])+")"
 
@@ -28,3 +30,20 @@ def profile(func):
         return result
 
     return wrap
+
+
+def debug(function):
+    def wrapper(*args,**kwargs):
+        result = function(*args, **kwargs)
+        logger.debug(f'''
+            ########################################################
+            ##############{function.__name__}
+            ########################################################
+            ''')
+        for i, arg in enumerate(args, start=1):
+            logger.debug(f'param {i} = {arg}')
+        logger.debug(f''' function result:
+                {result}''')
+        return result
+    return wrapper
+
