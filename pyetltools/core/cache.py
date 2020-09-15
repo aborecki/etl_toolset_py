@@ -40,6 +40,13 @@ class CacheConnector(Connector):
             logger.info("Removed " + str(f))
             os.remove(f)
 
+    def get_from_cache_temp(self, retriever, force_reload_from_source=False):
+        import hashlib
+        import inspect
+        func_src=inspect.getsource(retriever)
+        key= "TEMP_OBJECT_CACHE_"+str(hashlib.md5(func_src.encode('utf-8')).hexdigest())
+        return self.get_from_cache(key, retriever, force_reload_from_source)
+
     def get_from_cache(self, key, retriever=None, force_reload_from_source=False):
         cache_key = self.get_cache_key(key)
 

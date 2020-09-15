@@ -194,7 +194,7 @@ def define_structure(string, format_type):
 
 
 # Given pandas dataframe, it will return a spark's dataframe.
-def pandas_to_spark(spark, pandas_df):
+def convert_pandas_df_to_spark(spark, pandas_df):
     columns = list(pandas_df.columns)
 
     struct_list = []

@@ -168,7 +168,7 @@ class HiveCache:
 
 class Dataset(Connector):
     def __init__(self, key=None, db_connector=None, query=None, query_arguments=None, table=None, data_source=None,
-                 spark_register_name=None, lazy_load=True, spark_connector="SPARK",
+                 register_temp_table=None, lazy_load=True, spark_connector="SPARK",
                  cache_in_hive=False, cache_in_filesystem=False, hive_schema=None, hive_archive_schema=None,
                  hive_archive_before_drop=True, cache_folder=None
                  ):
@@ -180,7 +180,7 @@ class Dataset(Connector):
         self.query_arguments = query_arguments
         self.table = table
         self.data_source = data_source
-        self.spark_register_name = spark_register_name
+        self.register_temp_table = register_temp_table
         self.lazy_load = lazy_load
         self.cache_in_hive = cache_in_hive
         self.cache_in_filesystem=cache_in_filesystem
@@ -279,9 +279,9 @@ class Dataset(Connector):
         # gets pandas data frame and discards result
         self.get_pandas_df()
 
-    def get_spark_register_name(self):
-        if self.spark_register_name :
-            return self.spark_register_name
+    def get_register_temp_table(self):
+        if self.register_temp_table :
+            return self.register_temp_table
         else:
             if self.key:
                 return self.key.replace("/","_")
@@ -289,7 +289,7 @@ class Dataset(Connector):
     def refresh_spark_df_from_source(self, args=None):
         con: DBConnector = self.get_db_connector()
 
-        df = con.query_spark(self.get_query(args), self.get_spark_register_name()
+        df = con.query_spark(self.get_query(args), self.get_register_temp_table()
                              )
         self.df_spark = df
         if self.cache_in_hive:
@@ -306,7 +306,7 @@ class Dataset(Connector):
             self.filesystem_cache.save_pandas_df()
         return df
 
-    def run_custom_query_spark_df(self, custom_query, args=None, spark_register_name=None):
+    def run_custom_query_spark_df(self, custom_query, args=None, register_temp_table=None):
         acct_args={};
         if self.query_arguments:
             acct_args=self.query_arguments
@@ -316,11 +316,11 @@ class Dataset(Connector):
 
         return self.get_db_connector().query_spark(
             custom_query.format_map(acct_args),
-            spark_register_name)
+            register_temp_table)
 
-    def run_query_spark_df(self, args=None, spark_register_name=None):
+    def run_query_spark_df(self, args=None, register_temp_table=None):
         return self.get_db_connector().query_spark(self.get_query_with_args(args),
-                                                   spark_register_name)
+                                                   register_temp_table)
 
 
     def get_spark_df(self):
@@ -350,10 +350,10 @@ class Dataset(Connector):
                 if self.cache_in_filesystem:
                     self.filesystem_cache.save()
                 data_source = "database"
-        spark_register_name=self.get_spark_register_name()
-        if spark_register_name:
-            print("Registering temp table as: "+spark_register_name)
-            self.df_spark.registerTempTable(spark_register_name)
+        register_temp_table=self.get_register_temp_table()
+        if register_temp_table:
+            print("Registering temp table as: "+register_temp_table)
+            self.df_spark.registerTempTable(register_temp_table)
         print("Spark dataframe retrieved from " + data_source + ".")
         return self.df_spark
 

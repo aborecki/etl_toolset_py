@@ -17,6 +17,12 @@ class SparkConnector(Connector):
             self._sql = self.get_spark_session().sql
         return self._sql
 
+    def sql_query(self, query, register_temp_table=None):
+        df=self.sql(query)
+        if register_temp_table is not None:
+            df.registerTempTable(register_temp_table)
+        return df
+
     def get_spark_session(self):
         if not self._spark_session:
             self._spark_session = get_spark_session(self.master, self.options)
@@ -28,10 +34,10 @@ class SparkConnector(Connector):
     def parallelize(self):
         return self.get_spark_context()
 
-    def create_data_frame(self, c, schema="COLUMN string", spark_register_name=None):
+    def create_data_frame(self, c, schema="COLUMN string", register_temp_table=None):
         df = self.get_spark_session().createDataFrame([(i,) for i in c], schema)
-        if spark_register_name:
-            df.registerTempTable(spark_register_name)
+        if register_temp_table:
+            df.registerTempTable(register_temp_table)
         return df
 
     def __init__(self, key, master, options=None):
@@ -60,11 +66,11 @@ class SparkConnector(Connector):
         #print("Query/table:"+query_or_table)
         df = cf.load()
 
-        df.persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
+        df.persist(pyspark.StorageLevel.MEMORY_AND_DISK)
         return df
 
-    def pandas_to_spark(self, pandas_df):
-        return pandas_to_spark(self.get_spark_session(), pandas_df)
+    def convert_pandas_df_to_spark(self, pandas_df, register_temp_table=None):
+        return convert_pandas_df_to_spark(self.get_spark_session(), pandas_df, register_temp_table)
 
 
 
@@ -141,8 +147,10 @@ class SparkConnector(Connector):
 #             return spark.createDataFrame(pandas_df, p_schema).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
 
 
-def pandas_to_spark(spark, pandas_df):
+def convert_pandas_df_to_spark(spark, pandas_df, spark_register_name=None):
     convertedToSpark = DataFrameConverter().get_spark_df(spark, pandas_df)
+    if spark_register_name is not None:
+        convertedToSpark.registerTempTable(spark_register_name)
     return convertedToSpark
 
 def df_to_excel(filename):
@@ -184,7 +192,7 @@ class DataFrameConverter:
         for ch in column_name_set:
             column_meta.update({ch: {
                 self.dtypeHeader: str(self.df[ch].dtypes),
-                self.actualHeader: str(type(self.df[ch][0])).split("'")[1]
+                self.actualHeader:  str(type(self.df[ch][0])).split("'")[1] if 0 in self.df[ch] else ""
             }})
         return column_meta
 

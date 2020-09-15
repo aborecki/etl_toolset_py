@@ -149,7 +149,7 @@ class DBConnector(Connector):
 
         return self._odbcconnection;
 
-    def query_spark(self, query, registerTempTableName=None):
+    def query_spark(self, query, register_temp_table=None):
         if self.supports_jdbc:
             logger.debug("Executing query (JDBC):"+query)
             ret=self.get_spark_connector().get_df_from_jdbc(self.get_jdbc_conn_string(),
@@ -164,12 +164,12 @@ class DBConnector(Connector):
             is_empty = pdf.empty
             ret=None
             if not is_empty:
-                ret = self.get_spark_connector().pandas_to_spark(pdf)
+                ret = self.get_spark_connector().convert_pandas_df_to_spark(pdf)
             else:
                 print("No data returned.")
-        if registerTempTableName is not None:
-            print("Registering temp table as:"+registerTempTableName)
-            ret.registerTempTable(registerTempTableName)
+        if register_temp_table is not None:
+            print("Registering temp table as:"+register_temp_table)
+            ret.registerTempTable(register_temp_table)
         return ret
 
     def query_pandas(self, query, reuse_odbc_connection=False):
@@ -291,7 +291,7 @@ class DBConnector(Connector):
     def execute_statement(self, statement, add_col_names=False, reuse_odbc_connection=False):
 
         if self.supports_odbc:
-            conn = self.get_odbc_connection(reuse_odbc_connectiongit )
+            conn = self.get_odbc_connection(reuse_odbc_connection )
             cursor = conn.cursor()
             cursor.execute(statement)
             res = []
