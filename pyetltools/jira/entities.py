@@ -28,6 +28,12 @@ class JiraIssue:
     def set_sprint(self, new_sprint):
         self.content["fields"]["customfield_10004"] = new_sprint
 
+    def get_acceptance_crit(self):
+        return self.content["fields"]["customfield_10400"]
+
+    def set_acceptance_crit(self, new_accept):
+        self.content["fields"]["customfield_10400"] = new_accept
+
     def get_id(self):
         return self.content["id"]
 

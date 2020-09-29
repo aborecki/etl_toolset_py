@@ -1,7 +1,6 @@
 colored
 pandas
 xlsxwriter
-pyspark
 pyodbc
 jaydebeapi
 sqlalchemy
@@ -10,3 +9,4 @@ requests
 mechanize
 bs4
 lxml
+pywin32

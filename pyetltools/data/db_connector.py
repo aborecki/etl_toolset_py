@@ -14,7 +14,9 @@ import string
 
 import logging
 
-from pyetltools.data.spark import tools
+
+
+from pyetltools.data.spark import  tools as spark_tools
 
 logger = logging.getLogger("bectools")
 
@@ -67,8 +69,8 @@ class DBConnector(Connector):
             self.jdbc_driver = self.db_dialect.get_jdbc_driver()
         self.DS=AttrDict(initializer=lambda _: self.load_db_sub_connectors() )
         self._odbcconnection=None
-        from pyetltools.data.sql_alchemy_connector import SqlAlchemyConnector
 
+        from pyetltools.data.sql_alchemy_connector import SqlAlchemyConnector
         self.sql_alchemy_connector= SqlAlchemyConnector(self)
 
         if self.load_db_connectors:
@@ -397,9 +399,9 @@ class DBConnector(Connector):
 
     @classmethod
     def df_to_excel(filename):
-        tools.df_to_excel(filename)
+        spark_tools.df_to_excel(filename)
 
     @classmethod
     def df_to_csv(dir):
-        tools.df_to_csv(dir)
+        spark_tools.df_to_csv(dir)
 
