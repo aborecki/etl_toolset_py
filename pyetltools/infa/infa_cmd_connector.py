@@ -2,6 +2,7 @@ from pyetltools.core import connector
 from pyetltools.core.connector import Connector
 import os
 from pyetltools.infa import lib
+from pyetltools.infa.lib import load_infa_log_to_df
 
 
 class InfaCmdConnector(Connector):
@@ -94,22 +95,41 @@ class InfaCmdConnector(Connector):
         self.run_pmrep_connect()
         return self.run_pmrep("deletequery", "-n", query_name,"-t",query_type,"-f")
 
-    def convert_log_bin_to_xml(self, bin_file_input_path, xml_output=None):
+    def run_infacmd_convert_log_bin_to_xml(self, bin_file_input_path, xml_output=None):
         if not  xml_output:
             res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{bin_file_input_path}")
         else:
             res = self.run_infacmd("ConvertLogFile", "-fm", "XML", "-in", f"{bin_file_input_path}","-lo", f"{xml_output}")
         return res
 
-    def convert_log_bin_to_xml_and_parse(self, bin_file_input_path, output_file , use_converted_files=False, overwrite_converted_files=False, output_only_matched=True):
+
+    def check_if_file_exists_and_contains(self,file, str):
+        if not os.path.isfile(file):
+            return False
+        else:
+            with open(file, 'rt') as file:
+                data = file.read().replace('\n', '')
+        if str in data:
+            return True
+        else:
+            return False
+
+
+    def parse_log(self,output_file, log_df, output_only_matched=True):
+        parsed = lib.parse_infa_log(output_file, log_df, output_only_matched=output_only_matched)
+        return parsed
+
+    def load_log(self, output_file):
+        return load_infa_log_to_df(output_file)
+
+    def convert_log_bin_to_xml(self, bin_file_input_path, output_file , use_converted_files=False, overwrite_converted_files=False ):
         res=None
-        if os.path.isfile(output_file) and use_converted_files:
+        if self.check_if_file_exists_and_contains(output_file,"completed at") and use_converted_files:
             pass
         else:
-            if os.path.isfile(output_file) and not overwrite_converted_files:
+            if self.check_if_file_exists_and_contains(output_file,"completed at") and not overwrite_converted_files:
                 raise Exception("File "+ output_file + " already exists. Set parameter use_converted_files or overwrite_converted_files to True." )
             else:
-                res = self.convert_log_bin_to_xml(bin_file_input_path, output_file)
-        parsed = lib.parse_infa_log(output_file, output_only_matched=output_only_matched)
-        return (res, parsed)
+                res = self.run_infacmd_convert_log_bin_to_xml(bin_file_input_path, output_file)
+        return res
 

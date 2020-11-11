@@ -9,7 +9,7 @@ def filter_pandas_dataframe_fields_by_regex(self, regex):
 
 
 def filter_pandas_dataframe_field_by_regex(self, column_name, regex):
-    return self[self[column_name].str.contains(regex)]
+    return self[self[column_name].str.contains(regex, na=False)]
 
 
 pd.DataFrame.filter_by_regex = filter_pandas_dataframe_fields_by_regex
@@ -70,39 +70,103 @@ def compare_multiple_data_frames(dfs, keys, names, cols_to_compare):
     result_df.rename(columns={'row_source_': 'row_source'}, inplace=True)
     return result_df
 
-def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_compare):
+
+from Levenshtein import distance as levenshtein_distance
+from functools import reduce
+
+def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_compare, keys_fuzzy_match=[], keys_fuzzy_match_comparers=None, make_copy=True):
     import pandas as pd
 
+    if  keys_fuzzy_match_comparers and len(keys_fuzzy_match != keys_fuzzy_match_comparers):
+        raise Exception("keys_fuzzy_match_comparers have to be None to use default fuzzy field comparer or the length of keys_fuzzy_match.")
 
-    left_name= ("_" if left_name !="" else "")+left_name
-    right_name=("_" if right_name !="" else "")+right_name
+    def default_fuzzy_comp(field_1,field_2):
+        field_1_last_part = field_1.split("_")[-1]
+        field_2_last_part=field_2.split("_")[-1]
+        # equal when 1 char diff  and also last character is euqal
+        return levenshtein_distance(field_1, field_2) <= 1 \
+                and field_1_last_part == field_2_last_part
 
+    if not keys_fuzzy_match_comparers:
+        keys_fuzzy_match_comparers=[default_fuzzy_comp for x in keys_fuzzy_match]
 
-    df_left = df_left.rename(columns=dict([(c, c+left_name ) for c in list(df_left.columns) if c not in keys]), inplace=False)
-    df_right = df_right.rename(columns=dict([(c,c+right_name ) for c in list(df_right.columns) if c not in keys]), inplace=False)
-
-    compare = pd.merge(df_left, df_right, on=keys, suffixes=[left_name, right_name], indicator="row_source", how="outer")
+    if make_copy:
+        df_left=df_left.copy()
+        df_right=df_right.copy()
+    l_name = left_name
+    r_name = right_name
+    left_name = ("_" if left_name != "" else "") + left_name
+    right_name = ("_" if right_name != "" else "") + right_name
 
     columns = list(df_left.columns)
+
+    keys_to_merge = [k for k in keys if k not in keys_fuzzy_match]
+    df_left['idx'] = df_left.reset_index().index
+    df_right['idx'] = df_right.reset_index().index
+    df_left = df_left.rename(
+        columns=dict([(c, c + left_name) for c in list(df_left.columns) if c not in keys_to_merge]), inplace=False)
+    df_right = df_right.rename(
+        columns=dict([(c, c + right_name) for c in list(df_right.columns) if c not in keys_to_merge]), inplace=False)
+
+    compared_df = pd.merge(df_left, df_right, on=keys_to_merge, suffixes=[left_name, right_name],
+                           indicator="row_source", how="inner" if len(keys_fuzzy_match) > 0 else "outer")
+    keys_fuzzy_match_doubled=[]
+    if len(keys_fuzzy_match) > 0:
+        keys_fuzzy_match_doubled = reduce(lambda x, y: x + y,
+                                          [[kfm + left_name, kfm + right_name] for kfm in keys_fuzzy_match])
+        def filter_rows(r):
+            for idx, kfm in enumerate(keys_fuzzy_match):
+                field_1=r[kfm + left_name]
+                field_2= r[kfm + right_name]
+
+                ret_comp=keys_fuzzy_match_comparers[idx](field_1, field_2)
+                if not ret_comp:
+                    return False
+            return True
+
+        filtering_array=compared_df.apply(filter_rows, axis=1)
+        if len(filtering_array)>0:
+            compared_df = compared_df[filtering_array]
+
+
+
+        # add left , right joing
+        # that is  rows which are not matached
+        df_left["row_source"] = "left_only"
+        df_right["row_source"] = "right_only"
+        compared_df = pd.concat(
+            [compared_df, df_left[~ df_left["idx" + left_name].isin(compared_df["idx" + left_name])]])
+        compared_df = pd.concat(
+            [compared_df, df_right[~ df_right["idx" + right_name].isin(compared_df["idx" + right_name])]])
+
+    compared_df['row_source'] = compared_df.row_source.astype(str)
+    compared_df.loc[compared_df["row_source"] == "left_only", "row_source"] = l_name + "_only"
+    compared_df.loc[compared_df["row_source"] == "right_only", "row_source"] = r_name + "_only"
+
 
     def sort_columns(c):
         cr = c.replace(left_name, "").replace(right_name, "")
 
         if cr in cols_to_compare:
-            ret= cols_to_compare.index(cr)+ (0 if left_name in c else 1)
+            ret = (cols_to_compare.index(cr) + 1) * 10 + (0 if left_name in c else 1)
         else:
             if cr not in columns:
                 ret = 0
             else:
-                ret= (columns.index(cr)+1) * 100 + (0 if left_name in c else 1)
+                ret = (columns.index(cr) + 1) * 100 + (0 if left_name in c else 1)
 
-        logger.debug("Column sorted: "+c+" -> "+str(ret))
+        logger.debug("Column sorted: " + c + " -> " + str(ret))
+
         return ret
 
-    cols = ["row_source"] + keys + sorted([col for col in compare if col not in keys + ["row_source"]], key=sort_columns)
-    logger.debug("compare_data_frames: cols:"+ str(cols))
-    compare_srt = compare[cols]
-    for col_comp in cols_to_compare:
-        compare_srt[col_comp+"_diff"] = ~ (
-                compare_srt[col_comp + left_name] == compare_srt[col_comp + right_name])
-    return compare_srt
+    cols = ["row_source"] + keys_to_merge + keys_fuzzy_match_doubled +\
+           sorted([col for col in compared_df if col not in list(set(keys_to_merge).union(keys_fuzzy_match_doubled))+ ["row_source"]], key=sort_columns)
+    logger.debug("compare_data_frames: cols:" + str(cols))
+    compare_sorted_df = compared_df[cols]
+    with pd.option_context('mode.chained_assignment', None):
+        for col_comp in cols_to_compare:
+            compare_sorted_df[col_comp + "_diff"] = ~ (
+                    compare_sorted_df[col_comp + left_name] == compare_sorted_df[col_comp + right_name])
+    compare_sorted_df = compare_sorted_df.drop(columns=["idx"+left_name,"idx"+right_name])
+    return compare_sorted_df
+

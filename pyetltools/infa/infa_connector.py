@@ -45,21 +45,21 @@ class InfaConnector(Connector):
                      order by query_id desc 
          """
 
-    def __init__(self, key, infa_repo_db_connector, infa_cmd_connector):
+    def __init__(self, key=None, infa_repo_db_connector=None, infa_cmd_connector=None):
         super().__init__(key)
         self.infa_repo_db_connector_key = infa_repo_db_connector
         self.infa_cmd_connector_key = infa_cmd_connector
 
     def validate_config(self):
         super().validate_config()
-        connector.get(self.infa_cmd_connector_key)
+        self.env_manager.get_connector_by_key(self.infa_cmd_connector_key)
         connector.get(self.infa_repo_db_connector_key)
 
     def get_infa_repo_db_connector(self):
-        return connector.get(self.infa_repo_db_connector_key)
+        return self.env_manager.get_connector_by_key(self.infa_repo_db_connector_key)
 
     def get_infa_cmd_connector(self):
-        return connector.get(self.infa_cmd_connector_key)
+        return self.env_manager.get_connector_by_key(self.infa_cmd_connector_key)
 
     def get_connections_as_pd_df(self):
         return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_connections)

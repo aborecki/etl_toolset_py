@@ -10,3 +10,5 @@ mechanize
 bs4
 lxml
 pywin32
+python-Levenshtein
+pyarrow

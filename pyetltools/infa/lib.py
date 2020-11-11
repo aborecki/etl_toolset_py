@@ -2,19 +2,15 @@ import lxml.etree as ET
 from collections import namedtuple
 import re
 
+import pandas
 
-def parse_infa_log(xml_file, output_only_matched=True):
-    import pandas
-    LogEntry = namedtuple("LogEntry",
-                          "timestamp message messageCode service clientNode threadName lookup_rows_count lookup_trans lookup_trans_sql lookup_trans_sql_default_override  src_trg_type src_trg_table src_trg_instance src_trg_output_rows src_trg_affected_rows src_trg_applied_rows src_trg_rejected_rows sq_instance sq_sql sq_reader_src_table sq_reader_instance sq_reader_rows sq_reader_error_rows param_type param_value param_name log_workflow_name instance_name log_workflow_run_id")
+
+def load_infa_log_to_df(xml_file):
     parsed_xml = ET.parse(xml_file)
     log_entries = parsed_xml.findall(".//logEvent")
     print("Log entries read:" + str(len(log_entries)))
-    ret = []
-    last_src_trg_type = None
-    log_workflow_run_id = None
-    bankdato_date_param = None
-    for l in log_entries:
+
+    def get_fields(l):
         from datetime import datetime
         timestamp_orig = int(str(l.attrib["timestamp"])) / 1000
         timestamp = datetime.fromtimestamp(timestamp_orig)
@@ -23,7 +19,31 @@ def parse_infa_log(xml_file, output_only_matched=True):
         service = str(l.attrib["service"])
         clientNode = str(l.attrib["clientNode"])
         threadName = str(l.attrib["threadName"])
-        data = parse_log_message(message)
+        return (timestamp_orig,timestamp,messageCode,message,service,clientNode,threadName)
+
+
+    return pandas.DataFrame([ get_fields(l) for l in  log_entries],
+                            columns=['timestamp_orig','timestamp','messageCode','message','service','clientNode','threadName'])
+
+def parse_infa_log(xml_file, log_entries, output_only_matched=True):
+    import pandas
+    LogEntry = namedtuple("LogEntry",
+                          "timestamp message messageCode service clientNode threadName lookup_rows_count lookup_trans  lookup_trans_sql lookup_trans_sql_default_override lookup_reused_trans lookup_reusing_trans src_trg_type src_trg_table src_trg_instance src_trg_output_rows src_trg_affected_rows src_trg_applied_rows src_trg_rejected_rows sq_instance sq_sql sq_reader_src_table sq_reader_instance sq_reader_rows sq_reader_error_rows param_type param_value param_name log_workflow_name instance_name log_workflow_run_id")
+
+    ret = []
+    last_src_trg_type = None
+    log_workflow_run_id = None
+    bankdato_date_param = None
+    for l in log_entries.itertuples():
+        from datetime import datetime
+        timestamp_orig = l.timestamp
+        timestamp = timestamp_orig
+        messageCode = l.messageCode
+        message = l.message
+        service = l.service
+        clientNode = l.clientNode
+        threadName =  l.threadName
+        data = parse_log_message(l.message)
         if not data.matched and output_only_matched:
             continue
 
@@ -33,6 +53,11 @@ def parse_infa_log(xml_file, output_only_matched=True):
         lookup_trans=None
         lookup_trans_sql=None
         lookup_trans_sql_default_override=None
+
+        lookup_reused_trans = None
+        lookup_reusing_trans = None
+
+        lookup_connection=None
 
         src_trg_type = None
         src_trg_table = None
@@ -71,6 +96,11 @@ def parse_infa_log(xml_file, output_only_matched=True):
             elif "OVERRIDE" in  override_text:
                 lookup_trans_sql_default_override="override sql"
             lookup_trans_sql = data.lookup_trans[0][2]
+
+        if len(data.lookup_reused_trans) > 0:
+            lookup_source = data.lookup_reused_trans[0][0]
+            lookup_reused_trans = data.lookup_reused_trans[0][1]
+            lookup_trans_reusing = data.lookup_reused_trans[0][2]
         if len(data.targets) > 0:
             src_trg_type = last_src_trg_type
             src_trg_table = data.targets[0][0]
@@ -81,7 +111,8 @@ def parse_infa_log(xml_file, output_only_matched=True):
             src_trg_rejected_rows = data.targets[0][5]
         if len(data.sq_instances) > 0:
             sq_instance = data.sq_instances[0][0]
-            sq_sql = data.sq_instances[0][1]
+            user_specified= data.sq_instances[0][1]
+            sq_sql = data.sq_instances[0][2]
         if len(data.sq_reader) > 0:
             sq_reader_src_table = data.sq_reader[0][2]
             sq_reader_instance = data.sq_reader[0][3]
@@ -118,7 +149,9 @@ def parse_infa_log(xml_file, output_only_matched=True):
             log_workflow_run_id = data.wf_run_info[0][2]
 
         ret.append(LogEntry(timestamp, message, messageCode, service, clientNode, threadName,
-                            lookup_rows_count, lookup_trans, lookup_trans_sql,lookup_trans_sql_default_override, src_trg_type, src_trg_table, src_trg_instance, src_trg_output_rows,
+                            lookup_rows_count, lookup_trans, lookup_trans_sql,lookup_trans_sql_default_override,
+                            lookup_reused_trans, lookup_reusing_trans,
+                            src_trg_type, src_trg_table, src_trg_instance, src_trg_output_rows,
                             src_trg_affected_rows,
                             src_trg_applied_rows, src_trg_rejected_rows, sq_instance, sq_sql,
                             sq_reader_src_table, sq_reader_instance, sq_reader_rows, sq_reader_error_rows,
@@ -130,22 +163,36 @@ def parse_infa_log(xml_file, output_only_matched=True):
     ret["bankdato_date_param"] = bankdato_date_param
     return ret
 
-src_tgt_summary_pat = re.compile('(.*) Load Summary.')
-lookup_pat = re.compile('Lookup table row count : (\\d+)')
-lookup_trans_pat = re.compile(r'Lookup Transformation \[([^]]+)\]: (Default sql to create lookup cache|Lookup override sql to create cache): (.*)', re.DOTALL)
-target_pat = re.compile(
-    r'Table: \[(\w+)\] \(Instance Name: \[([^]]+)\]\)\s+Output Rows \[(\d+)\], Affected Rows \[(\d+)\], Applied Rows \[(\d+)\], Rejected Rows \[(\d+)\]')
-sq_instance_pat = re.compile(r'SQ instance \[([^]]+)\] SQL Query \[(.*)\]', re.DOTALL)
-sq_reader_pat = re.compile(
-    r'Read \[(\d+)\] rows, read \[(\d+)\] error rows for source table \[(\w+)\] instance name \[(\w+)\]')
-param_pat = re.compile(
-    r'Use default value \[([^]]+)\] for mapping parameter:\[([^]]+)\]', re.DOTALL)
-param_wf_pat = re.compile(
-    r'Use override value \[([^]]+)\] for user-defined workflow/worklet variable:\[([^]]+)\]', re.DOTALL)
-param_pers_pat = re.compile(
-    r'Use persisted repository value \[([^]]+)\] for mapping variable:\[([^]]+)\]', re.DOTALL)
-wf_run_info_pat = re.compile(
-    r'Workflow: \[([^]]+)\] Run Instance Name: \[([^]]*)\] Run Id: \[(\d+)\]', re.DOTALL)
+src_tgt_summary_pat = ( re.compile('(.*) Load Summary.'),
+                        ["src_trg_type"] )
+lookup_pat = ( re.compile('Lookup table row count : (\\d+)') ,
+               ["lookup_rows_count"] )
+lookup_trans_pat = (  re.compile(r'Lookup Transformation \[([^]]+)\]: (Default sql to create lookup cache|Lookup override sql to create cache): (.*)', re.DOTALL),
+               ["lookup_trans","override_text","lookup_trans_sql"] )
+lookup_reused_trans_pat = (  re.compile(r'Existing cache of lookup source \[([^]]+)\] created by lookup \[([^]]+)\] is re-used by lookup \[([^]]+)\]', re.DOTALL),
+               ["lookup_source","lookup_reused_trans","lookup_trans_reusing"] )
+lookup_connection_pat = (  re.compile(r"Lookup \[([^]]+)\] uses database connection \[([^]]+)\] in code page \[([^]]+)\]"),
+               ["lookup_trans","lookup_connection","lookup_code_page"] )
+target_pat = (  re.compile(
+    r'Table: \[(\w+)\] \(Instance Name: \[([^]]+)\]\)\s+Output Rows \[(\d+)\], Affected Rows \[(\d+)\], Applied Rows \[(\d+)\], Rejected Rows \[(\d+)\]'),
+               ["src_trg_type","src_trg_table","src_trg_instance","src_trg_output_rows","src_trg_affected_rows","src_trg_applied_rows","src_trg_rejected_rows"] )
+sq_instance_pat = (  re.compile(r'SQ [Ii]nstance \[([^]]+)\] (User specified )?SQL Query \[(.*)\]', re.DOTALL),
+               ["sq_instance","user_specified","sq_sql"] )
+sq_reader_pat = (  re.compile(
+    r'Read \[(\d+)\] rows, read \[(\d+)\] error rows for source table \[(\w+)\] instance name \[(\w+)\]'),
+               ["sq_reader_rows","sq_reader_error_rows","sq_reader_src_table","sq_reader_instance"] )
+param_pat = (  re.compile(
+    r'Use default value \[([^]]+)\] for mapping parameter:\[([^]]+)\]', re.DOTALL),
+               ["param_value","param_name"] )
+param_wf_pat = (  re.compile(
+    r'Use override value \[([^]]+)\] for user-defined workflow/worklet variable:\[([^]]+)\]', re.DOTALL),
+               ["param_value","param_name"] )
+param_pers_pat = (  re.compile(
+    r'Use persisted repository value \[([^]]+)\] for mapping variable:\[([^]]+)\]', re.DOTALL),
+               ["param_value","param_name"] )
+wf_run_info_pat = (  re.compile(
+    r'Workflow: \[([^]]+)\] Run Instance Name: \[([^]]*)\] Run Id: \[(\d+)\]', re.DOTALL),
+               ["log_workflow_name","instance_name","log_workflow_run_id"] )
 
 
 def parse_log_message(message):
@@ -157,18 +204,20 @@ def parse_log_message(message):
             if found:
                 ret.append([])
                 continue
-            result = p.findall(message)
+            result = p[0].findall(message)
             if len(result) > 0:
+                #ret.append(dict([r for r in zip(p[1],result[0])]))
                 ret.append(result)
                 found=True
             else:
                 ret.append([])
         return found, ret
 
-    matched, ( src_trg_type, lookup, lookup_trans,  targets, sq_instances, sq_reader, params, params_wf, params_pers, wf_run_info) = find_first_matching(
+    matched, ( src_trg_type, lookup, lookup_trans, lookup_reused_trans, targets, sq_instances, sq_reader, params, params_wf, params_pers, wf_run_info) = find_first_matching(
                                                                                                                 src_tgt_summary_pat,
                                                                                                                 lookup_pat,
                                                                                                                 lookup_trans_pat,
+                                                                                                                lookup_reused_trans_pat,
                                                                                                                 target_pat,
                                                                                                                 sq_instance_pat,
                                                                                                                 sq_reader_pat,
@@ -178,6 +227,9 @@ def parse_log_message(message):
                                                                                                                 wf_run_info_pat)
 
     ParsedLogEntry = namedtuple("ParsedLogEntry",
-                                "matched src_trg_type lookup lookup_trans targets sq_instances sq_reader params params_wf params_pers wf_run_info")
+                                "matched src_trg_type lookup lookup_trans lookup_reused_trans targets sq_instances sq_reader params params_wf params_pers wf_run_info")
 
-    return ParsedLogEntry(matched, src_trg_type, lookup, lookup_trans, targets, sq_instances, sq_reader, params, params_wf, params_pers, wf_run_info)
+    return ParsedLogEntry(matched, src_trg_type, lookup, lookup_trans, lookup_reused_trans, targets, sq_instances, sq_reader, params, params_wf, params_pers, wf_run_info)
+
+
+

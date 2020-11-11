@@ -10,3 +10,5 @@ requests
 mechanize
 bs4
 lxml
+python-Levenshtein
+pyarrow

@@ -26,47 +26,61 @@ class EmailConnector(Connector):
         assert self.to_emails, "To email cannot be None"
         return self.send_email_to(self.to_emails, subject, text)
 
-    def send_email_to(self, to, subject, text):
-        if self.method=="SMTP":
-            self.send_email_to_via_smtp(to, subject, text)
-        elif self.method=="OUTLOOK":
-            self.send_email_to_via_outlook(to, subject, text)
+    def send_email_to(self, to, subject, text, text_html=None, attachments=[]):
+        self.send_email_to_by(self.method, to, subject, text, text_html, attachments)
+
+    def send_email_to_by(self, method, to, subject, text, text_html, attachments=[]):
+        if method=="SMTP":
+            send_email_to_via_smtp(to, subject, text, text_html)
+        elif method=="OUTLOOK":
+            send_email_to_via_outlook(to, subject, text, text_html,  attachments)
         else:
             raise Exception(f"Unknown email sending method: {self.method}" )
 
-    def _get_to_emails(self, to):
-        if isinstance(to, list):
-            if self.method=="OUTLOOK":
-                return ";".join(to)
-            else:
-                return ",".join(to)
+
+    def send_email_to(self, to, subject, text,text_html=None,attachments=[]):
+        if self.method=="SMTP":
+            self.send_email_to_via_smtp(self.from_email, to, subject, text,self.server,self.smtp_username, self.get_password())
+        elif self.method=="OUTLOOK":
+            send_email_to_via_outlook(to, subject, text, text_html, attachments)
         else:
-            return  to
+            raise Exception(f"Unknown email sending method: {self.method}" )
 
-    def send_email_to_via_smtp(self,to, subject, text):
-        # Prepare actual message
-        to_emails=self._get_to_emails(to)
-        message = """From: %s\r\nTo: %s\r\nSubject: %s\r\n\
-    
-        %s
-        """ % (self.from_email, to_emails, subject, text)
-        server = smtplib.SMTP(self.server)
-        #server.ehlo()
-        #server.starttls()
-        server.login(self.smtp_username, self.get_password())
-        server.sendmail(self.from_email, self.to_emails, message)
-        server.quit()
 
-    def send_email_to_via_outlook(self, to, subject, text):
-        outlook = win32.Dispatch('outlook.application')
-        mail = outlook.CreateItem(0)
-        mail.To = self._get_to_emails(to)
-        mail.Subject = subject
-        mail.Body = text
-        #mail.HTMLBody = '<h2>HTML Message body</h2>'  # this field is optional
 
-        # To attach a file to the email (optional):
-        #attachment = "Path to the attachment"
-        # mail.Attachments.Add(attachment)
+def _get_to_emails( to, method):
+    if isinstance(to, list):
+        if method=="OUTLOOK":
+            return ";".join(to)
+        else:
+            return ",".join(to)
+    else:
+        return  to
 
-        mail.Send()
+def send_email_to_via_outlook( to, subject, text, text_html=None, attachments=[]):
+    outlook = win32.Dispatch('outlook.application')
+    mail = outlook.CreateItem(0)
+    mail.To = _get_to_emails(to, "OUTLOOK")
+    mail.Subject = subject
+    mail.Body = text
+    if text_html:
+        mail.HTMLBody = text_html
+
+    for at in attachments:
+        mail.Attachments.Add(at)
+
+    mail.Send()
+
+def send_email_to_via_smtp(from_email, to, subject, text, server, smtp_username, password ):
+    # Prepare actual message
+    to_emails = _get_to_emails(to, "SMTP")
+    message = """From: %s\r\nTo: %s\r\nSubject: %s\r\n\
+
+    %s
+    """ % (from_email, to_emails, subject, text)
+    server = smtplib.SMTP(server)
+    # server.ehlo()
+    # server.starttls()
+    server.login(smtp_username, password)
+    server.sendmail(from_email, to_emails, message)
+    server.quit()

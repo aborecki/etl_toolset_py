@@ -12,9 +12,9 @@ class  AttrDict(object):
         return self.__getattr__(key)
 
     def __repr__(self):
-        ret=""
+        ret="Available attributes:\n"
         for k,v in self._data.items():
-            ret+= "\n".join([i for i in repr(v).splitlines()])+"\n"
+            ret+= str(k)+" : "+"\n".join([i for i in repr(v).splitlines()])+"\n"
         return ret
 
     def keys(self):
@@ -28,7 +28,7 @@ class  AttrDict(object):
             return self._data[key]
         else:
             # Default behaviour
-            raise AttributeError(f"{key} does not exists.")
+            raise AttributeError(f"{key} does not exists. Available keys: "+str(list(self._data.keys())))
 
     def _add_attr(self, key, value):
         self._data[key]=value

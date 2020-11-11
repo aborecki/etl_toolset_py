@@ -5,7 +5,7 @@ from functools import reduce
 
 class HgConnector(Connector):
 
-    def __init__(self, key, root_folder, sub_folder=None):
+    def __init__(self, key=None, root_folder=None, sub_folder=None):
         super().__init__(key)
         if root_folder is None:
             raise Exception("root_folder parameter is not set")

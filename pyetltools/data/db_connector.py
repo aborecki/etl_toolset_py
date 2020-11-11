@@ -5,20 +5,18 @@ import pyodbc
 import pandas
 import jaydebeapi
 
-from pyetltools.core import connector
+from pyetltools.core import env
 from pyetltools.core.attr_dict import AttrDict
 from pyetltools.core.connector import Connector
 
 from sys import stderr
 import string
 
-import logging
-
-
 
 from pyetltools.data.spark import  tools as spark_tools
 
-logger = logging.getLogger("bectools")
+from pyetltools import logger
+
 
 
 class DBConnector(Connector):
@@ -43,7 +41,6 @@ class DBConnector(Connector):
                  db_dialect_class=None
                  ):
         super().__init__(key=key)
-        assert key, "Config key cannot be None"
         self.jdbc_conn_string = jdbc_conn_string
         self.odbc_conn_string = odbc_conn_string
         self.host = host
@@ -76,17 +73,17 @@ class DBConnector(Connector):
         if self.load_db_connectors:
             self.load_db_sub_connectors()
 
-
+        self.env = env.get_default_env_manager()
 
     def validate_config(self):
         super().validate_config()
-        connector.get(self.spark_connector)
+        # check if connector exists
+        self.env.get_connector_by_key(self.spark_connector)
 
     def get_spark_connector(self):
-        return connector.get(self.spark_connector)
+        return self.env.get_connector_by_key(self.spark_connector)
 
     def with_data_source(self, data_source):
-
         cp=self.clone()
         cp.data_source=data_source
         return cp
@@ -151,6 +148,12 @@ class DBConnector(Connector):
 
         return self._odbcconnection;
 
+    def query(self, query, reuse_odbc_connection=False):
+        """
+            Synonym for query_pandas
+        """
+        return self.query_pandas(query, reuse_odbc_connection)
+
     def query_spark(self, query, register_temp_table=None):
         if self.supports_jdbc:
             logger.debug("Executing query (JDBC):"+query)
@@ -175,6 +178,12 @@ class DBConnector(Connector):
         return ret
 
     def query_pandas(self, query, reuse_odbc_connection=False):
+        """
+            Reads database source to pandas dataframe.
+            Depending on the configuration of the connector either odbc, jdbc via spark or jaydebeapi jdbc will be used
+
+            :param reuse_odbc_connection: if set connection will be reused (currently works only for ODBC sources)
+        """
         logger.debug("Executing query:" + query)
         if self.supports_odbc:
              logger.debug(" using ODBC")
@@ -232,7 +241,7 @@ class DBConnector(Connector):
             conn.close()
 
     def copy_data(self, destination_db_connector, query, destination_tb_name,  batch_size=10000,
-                  truncate_destination_table=False):
+                  truncate_destination_table=False, fast_executemany=True):
 
         if self.supports_odbc:
             import time
@@ -242,7 +251,7 @@ class DBConnector(Connector):
             src_curs= src_conn.cursor()
             tgt_curs = dest_conn.cursor()
 
-            tgt_curs.fast_executemany = True
+            tgt_curs.fast_executemany = fast_executemany
 
             src_curs.execute(f"select  count_big(*) cnt from ({query}) x")
             src_cnt=int(src_curs.fetchone()[0])
@@ -269,7 +278,7 @@ class DBConnector(Connector):
             while len(src_data) > 0:
                 print(destination_tb_name+": Inserting "+str(len(src_data))+".", end="")
 
-                tgt_curs.executemany(f'INSERT INTO [{destination_tb_name}] ({COLUMNS}) VALUES ({PARAMS})', src_data)
+                tgt_curs.executemany(f'INSERT INTO {destination_tb_name} ({COLUMNS}) VALUES ({PARAMS})', src_data)
                 tgt_curs.commit()
                 time_batch_end = time.time()
                 tot=tot+len(src_data)

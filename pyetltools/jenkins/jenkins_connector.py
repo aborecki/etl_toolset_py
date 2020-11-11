@@ -4,7 +4,7 @@ import time
 
 import requests
 
-from pyetltools.core import connector
+
 from pyetltools.core.connector import Connector
 
 

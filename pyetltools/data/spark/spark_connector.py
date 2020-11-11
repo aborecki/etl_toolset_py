@@ -196,11 +196,15 @@ class DataFrameConverter:
             }})
         return column_meta
 
-    def equivalent_type(self, dtype, actual):
+    def equivalent_type(self, dtype, actual, datetype=1):
+        #print(dtype+" "+actual)
         if dtype == 'datetime64[ns]' and 'Timestamp' in actual:
             return TimestampType()
         elif dtype == 'datetime64[ns]':
-            return DateType()
+            if datetype==1:
+                return TimestampType()
+            else:
+                return DateType()
         elif dtype == 'int64':
             return LongType()
         elif dtype == 'int32':

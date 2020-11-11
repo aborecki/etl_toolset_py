@@ -1,10 +1,11 @@
 import logging
-logger = logging.getLogger("pyetltools")
+logger = logging.getLogger(__name__)
+logger.setLevel("INFO")
 
-import sys
+def get_default_logger():
+    return logger
 
 import pyetltools.data.pandas.tools as pandas_tools
-
 
 try:
     import pyetltools.data.spark.tools as spark_tools
@@ -20,12 +21,3 @@ try:
     import pyetltools.tools.test as test_tools
 except:
     pass
-
-
-from pyetltools.core import connector
-
-
-
-
-
-connectors = connector.connectors

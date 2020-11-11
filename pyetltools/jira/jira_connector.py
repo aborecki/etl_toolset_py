@@ -38,8 +38,9 @@ def print_response(response):
 
 class JiraConnector(Connector):
 
-    def __init__(self, key, url, username, password=None):
+    def __init__(self, key=None, url=None, username=None, password=None):
         super().__init__(key=key)
+        assert url, "url cannot be None"
         self.url = url
         self.username = username
         self.password = password

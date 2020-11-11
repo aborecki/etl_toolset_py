@@ -7,31 +7,44 @@ import pandas
 from pyetltools.core.connector import Connector
 import logging
 from pathlib import Path
+import os.path as path
+import time
 
-logger = logging.getLogger("bectools")
+from pyetltools import get_default_logger
+
+logger= get_default_logger()
 
 class CacheConnector(Connector):
-    def __init__(self, key, folder=None):
+    def __init__(self, key, folder=None, force_reload_from_source=False, default_days_in_cache=None):
         super().__init__(key),
         self.folder = folder
         if folder is None:
             self.folder = os.path.join(tempfile.gettempdir(),"PYETLTOOLS_CACHE")
         Path(self.folder).mkdir(parents=True, exist_ok=True)
-        self.cache=dict()
-        self.force_reload_from_source=False
+        self._cache=dict()
+        self._cache_insert_time = dict()
+        self.force_reload_from_source=force_reload_from_source
+        self.default_days_in_cache=default_days_in_cache
 
     def validate_config(self):
         super().validate_config()
 
     def add_to_cache(self, key, obj):
         cache_key = self.get_cache_key(key)
+        self._add_to_cache(key, obj)
+
+    def _add_to_cache(self, cache_key, obj):
         file=os.path.join(self.folder, cache_key + ".parquet")
 
-        obj.to_parquet(file)
-        self.cache[cache_key] = obj
+        if isinstance(obj, pandas.DataFrame):
+            obj.to_parquet(file)
+        else:
+            raise Exception("Cache does not supported data format: " + str(type(obj)))
+        self._add_to_mem_cache(cache_key, obj)
 
-    def reset_cache(self):
-        self.cache = dict()
+    def remove_cached_data(self):
+        self._cache = dict()
+        self._cache_insert_time = dict()
         import os
         f = []
         files_to_del = [os.path.join(self.folder, x) for x in os.listdir(self.folder) if
@@ -44,30 +57,48 @@ class CacheConnector(Connector):
         import hashlib
         import inspect
         func_src=inspect.getsource(retriever)
-        key= "TEMP_OBJECT_CACHE_"+str(hashlib.md5(func_src.encode('utf-8')).hexdigest())
+        key= "TEMP_OBJECT_CACHE_"+retriever.__name__+"_"+str(hashlib.md5(func_src.encode('utf-8')).hexdigest())
         return self.get_from_cache(key, retriever, force_reload_from_source)
 
-    def get_from_cache(self, key, retriever=None, force_reload_from_source=False):
+
+    def _add_to_mem_cache(self,cache_key, obj, lastModTime=None):
+        self._cache[cache_key] = obj
+        self._cache_insert_time[cache_key]=time.time() if not lastModTime else lastModTime
+
+    def get_from_cache(self, key, retriever=None, force_reload_from_source=False, days_in_cache=None):
         cache_key = self.get_cache_key(key)
 
         reload_from_source=self.force_reload_from_source or force_reload_from_source
+
+        if not days_in_cache:
+            days_in_cache = self.default_days_in_cache
 
         if ( self.force_reload_from_source):
             logger.info("Cache lookup disabled - force_reload_from_source flag is ON. ")
         if (force_reload_from_source):
             logger.info("Cache lookup for this operation disabled - force_reload_from_source flag is ON")
 
-        if not reload_from_source and cache_key in self.cache:
-            return self.cache[cache_key]
+        # returning memory cached value if reload_from_source is not forced
+        # and value is cached and
+        # days_in_cache is set and value stored in cache is not expired
+        if not reload_from_source and cache_key in self._cache and (days_in_cache is None or (time.time() - self._cache_insert_time[cache_key]) < days_in_cache * 24 * 60 * 60):
+            logger.info(f"Cached data retured (cache_key:{cache_key}). Data is "+ str(round((time.time() - self._cache_insert_time[cache_key])/60/60,2)) +" hours old.")
+            return self._cache[cache_key]
         else:
             file = os.path.join(self.folder, cache_key + ".parquet")
             try:
                 if not reload_from_source:
                     logger.info(f"Reading cache file: {file}")
-                    obj = pandas.read_parquet(file)
-                    self.cache[cache_key] = obj
-                    return obj
+                    if not self.is_file_older_than_x_days(file, days_in_cache):
+                        obj = pandas.read_parquet(file)
+                        self._add_to_mem_cache(cache_key, obj, self.get_file_last_mod_time(file))
+                        logger.info(f"File cached data retured (cache_key:{cache_key}). Data is " + str(
+                            round((time.time() - self._cache_insert_time[cache_key]) / 60 / 60, 2)) + " hours old.")
+                        return obj
+                    else:
+                        logger.info(f"Cache older than {days_in_cache} days. Refreshing.")
             except Exception as e:
+                logger.debug(e)
                 logger.info("Cannot read file from cache.")
             if retriever:
                 logger.info("Loading from source")
@@ -75,15 +106,11 @@ class CacheConnector(Connector):
                 if obj is None:
                     logger.info("None object returned from retriever function for key "+cache_key)
                     return None
-                self.cache[cache_key]=obj
-                if isinstance(obj, pandas.DataFrame):
-                    obj.to_parquet(file)
-                else:
-                    raise Exception("Cache does not supported data format: "+  str(type(obj)))
-
-                # todo: support other types of obj
+                self._add_to_cache(cache_key,obj)
+                logger.info("Done.")
                 return obj
             else:
+                logger.info("Object not retreived from cache and no retriever function given.")
                 return None
 
     def get_cache_key(self, s):
@@ -96,4 +123,15 @@ class CacheConnector(Connector):
     def _escape_str(self,s):
         return "".join(x for x in s.replace("/", "_") if x.isalnum() or x == "_")
 
+
+    def is_file_older_than_x_days(self, file, days=1):
+        file_time = path.getmtime(file)
+        if (time.time() - file_time) / 3600 > 24*days:
+            return True
+        else:
+            return False
+
+
+    def get_file_last_mod_time(self, file):
+        return  path.getmtime(file)
 

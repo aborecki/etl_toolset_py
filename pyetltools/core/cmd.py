@@ -23,6 +23,7 @@ class Cmd():
 
     def init_env(self):
         for key, value in self.env_override.items():
+            print("SET "+key+"="+value)
             os.environ[key] = value
 
     def get_executable_full_path(self):
