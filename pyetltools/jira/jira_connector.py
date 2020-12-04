@@ -11,6 +11,10 @@ from pyetltools.core.connector import Connector
 from pyetltools.jira.entities import JiraIssue
 from pyetltools.jira import  request_templates
 from xml.sax.saxutils import escape
+
+from pyetltools.jira.lib import set_assignee_for_subissues_of_issue
+
+
 def diff(old, new):
     if  type(old) != type(new):
         return (True, new)
@@ -37,7 +41,6 @@ def print_response(response):
 
 
 class JiraConnector(Connector):
-
     def __init__(self, key=None, url=None, username=None, password=None):
         super().__init__(key=key)
         assert url, "url cannot be None"
@@ -115,3 +118,6 @@ class JiraConnector(Connector):
         #updated_fields["fields"]["issuetype"] = jira.content_original["fields"]["issuetype"]
         #print(json.dumps(updated_fields))
         return self.request_put(f"issue/{jira.get_key()}?overrideScreenSecurity=true", data=json.dumps(updated_fields))
+
+
+JiraConnector.set_assignee_for_subissues_of_issue=set_assignee_for_subissues_of_issue

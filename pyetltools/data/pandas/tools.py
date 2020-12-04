@@ -74,7 +74,7 @@ def compare_multiple_data_frames(dfs, keys, names, cols_to_compare):
 from Levenshtein import distance as levenshtein_distance
 from functools import reduce
 
-def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_compare, keys_fuzzy_match=[], keys_fuzzy_match_comparers=None, make_copy=True):
+def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_compare, keys_fuzzy_match=[], keys_fuzzy_match_comparers=None, make_copy=True, merge_validate=None):
     import pandas as pd
 
     if  keys_fuzzy_match_comparers and len(keys_fuzzy_match != keys_fuzzy_match_comparers):
@@ -109,7 +109,7 @@ def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_
         columns=dict([(c, c + right_name) for c in list(df_right.columns) if c not in keys_to_merge]), inplace=False)
 
     compared_df = pd.merge(df_left, df_right, on=keys_to_merge, suffixes=[left_name, right_name],
-                           indicator="row_source", how="inner" if len(keys_fuzzy_match) > 0 else "outer")
+                           indicator="row_source", how="inner" if len(keys_fuzzy_match) > 0 else "outer", validate=merge_validate)
     keys_fuzzy_match_doubled=[]
     if len(keys_fuzzy_match) > 0:
         keys_fuzzy_match_doubled = reduce(lambda x, y: x + y,
@@ -167,6 +167,8 @@ def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_
         for col_comp in cols_to_compare:
             compare_sorted_df[col_comp + "_diff"] = ~ (
                     compare_sorted_df[col_comp + left_name] == compare_sorted_df[col_comp + right_name])
+        compare_sorted_df["diff"]=compare_sorted_df[[ cl+"_diff" for cl in cols_to_compare ]].any(axis=1)
+        compare_sorted_df["diff_cnt"] = compare_sorted_df[[cl + "_diff" for cl in cols_to_compare]].sum(axis=1)
     compare_sorted_df = compare_sorted_df.drop(columns=["idx"+left_name,"idx"+right_name])
     return compare_sorted_df
 

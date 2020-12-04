@@ -5,14 +5,14 @@ import pyodbc
 import pandas
 import jaydebeapi
 
-from pyetltools.core import env
+from pyetltools.core import env_manager
 from pyetltools.core.attr_dict import AttrDict
 from pyetltools.core.connector import Connector
 
 from sys import stderr
-import string
 
 
+from pyetltools.data.db_tools import db_metadata
 from pyetltools.data.spark import  tools as spark_tools
 
 from pyetltools import logger
@@ -20,6 +20,10 @@ from pyetltools import logger
 
 
 class DBConnector(Connector):
+
+    class tools:
+        pass
+
     def __init__(self,
                  key=None,
                  jdbc_conn_string=None,
@@ -73,7 +77,8 @@ class DBConnector(Connector):
         if self.load_db_connectors:
             self.load_db_sub_connectors()
 
-        self.env = env.get_default_env_manager()
+        self.env = env_manager.get_default_env_manager()
+
 
     def validate_config(self):
         super().validate_config()
@@ -148,6 +153,12 @@ class DBConnector(Connector):
 
         return self._odbcconnection;
 
+    def query_table(self, table_name, where=None):
+        cond_sql=""
+        if where:
+            cond_sql=f" WHERE {where}"
+        return self.query(f"SELECT * FROM {table_name} {cond_sql}" )
+
     def query(self, query, reuse_odbc_connection=False):
         """
             Synonym for query_pandas
@@ -156,7 +167,7 @@ class DBConnector(Connector):
 
     def query_spark(self, query, register_temp_table=None):
         if self.supports_jdbc:
-            logger.debug("Executing query (JDBC):"+query)
+            logger.debug(f"Executing query (JDBC) on connector {str(self)}:"+query)
             ret=self.get_spark_connector().get_df_from_jdbc(self.get_jdbc_conn_string(),
                                                       query,
                                                       self.db_dialect.get_jdbc_driver(),
@@ -164,7 +175,7 @@ class DBConnector(Connector):
                                                       self.get_password)
         else:
             print("Warning: conversion from panadas df to spark needed. Can be slow.")
-            print("Executing query (ODBC):" + query)
+            print(f"Executing query (ODBC) on connector {str(self)}:" + query)
             pdf = self.query_pandas(query)
             is_empty = pdf.empty
             ret=None
@@ -184,7 +195,7 @@ class DBConnector(Connector):
 
             :param reuse_odbc_connection: if set connection will be reused (currently works only for ODBC sources)
         """
-        logger.debug("Executing query:" + query)
+        logger.debug(f"Executing query on connector {str(self)}:" + query)
         if self.supports_odbc:
              logger.debug(" using ODBC")
              conn = self.get_odbc_connection(reuse_odbc_connection)
@@ -228,7 +239,7 @@ class DBConnector(Connector):
             curs = conn.cursor()
             logger.info("Executing:"  +sql)
             curs.execute(sql)
-            print("DONE")
+            logger.info("DONE")
             columns = [desc[0] for desc in curs.description]  # getting column headers
             # convert the list of tuples from fetchall() to a df
             return pandas.DataFrame(curs.fetchall(), columns=columns)
@@ -253,7 +264,7 @@ class DBConnector(Connector):
 
             tgt_curs.fast_executemany = fast_executemany
 
-            src_curs.execute(f"select  count_big(*) cnt from ({query}) x")
+            src_curs.execute(f"select  count(*) cnt from ({query}) x")
             src_cnt=int(src_curs.fetchone()[0])
             src_curs.commit()
 
@@ -262,7 +273,7 @@ class DBConnector(Connector):
 
             start = time.time()
             tot=0
-            print(destination_tb_name+": Copying "+str(src_cnt)+" records.")
+            logger.info(destination_tb_name+": Copying "+str(src_cnt)+" records.")
 
             src_curs = self.get_odbc_connection().cursor()
             src_curs.execute(query)
@@ -282,11 +293,11 @@ class DBConnector(Connector):
                 tgt_curs.commit()
                 time_batch_end = time.time()
                 tot=tot+len(src_data)
-                print(" DONE "+ str(round(tot/src_cnt*100))+"%" )
+                logger.info(" DONE "+ str(round(tot/src_cnt*100))+"%" )
                 time_passed=round(time.time() - start)
                 total_time=round(time_passed*(1.0/(tot/src_cnt)))
                 time_left=round(total_time-time_passed)
-                print(destination_tb_name+": Time passed: "+str(time_passed)+
+                logger.info(destination_tb_name+": Time passed: "+str(time_passed)+
                       " sec. Total time est: "+str(total_time)+
                       " sec. Time left: "+str(time_left) +"sec ("+str(round(time_left/60/60,2))+" hours)"+
                       " Speed from beginning: "+ str(round(tot/time_passed,2))+" rec/sec" +
@@ -295,7 +306,7 @@ class DBConnector(Connector):
                 time_batch_start = time.time()
                 src_data = src_curs.fetchmany(batch_size)
                 time_batch_start = time.time()
-            print(destination_tb_name+": Copying time: "+ str((time.time()) - start))
+            logger.info(destination_tb_name+": Copying time: "+ str((time.time()) - start))
         else:
             raise Exception("ODBC support required")
 
@@ -358,8 +369,9 @@ class DBConnector(Connector):
     def get_columns_all_objects(self):
         return self.query_pandas(self.db_dialect.get_sql_list_columns_all_objects())
 
-    def get_columns(self, table_name):
-        return self.query_pandas(self.db_dialect.get_sql_list_columns(table_name))
+    # replaced by cached version from db_metadata.py
+    #def get_columns_for_table(self, table_name):
+    #    return self.query_pandas(self.db_dialect.get_sql_list_columns(table_name))
 
     def get_objects_for_databases(self, databases):
         ret = None
@@ -414,3 +426,17 @@ class DBConnector(Connector):
     def df_to_csv(dir):
         spark_tools.df_to_csv(dir)
 
+# Extending db_connector with methods
+
+DBConnector.get_objects_cached=db_metadata.get_objects_cached
+DBConnector.get_objects_for_multiple_dbs=db_metadata.get_objects_for_multiple_dbs
+DBConnector.get_objects_by_name=db_metadata.get_objects_by_name
+DBConnector.get_objects_by_name_regex=db_metadata.get_objects_by_name_regex
+
+DBConnector.get_columns_for_multiple_dbs=db_metadata.get_columns_for_multiple_dbs
+DBConnector.get_columns=db_metadata.get_columns
+DBConnector.get_columns_by_object_name=db_metadata.get_columns_by_object_name
+DBConnector.get_columns_by_object_name_regex=db_metadata.get_columns_by_object_name_regex
+
+DBConnector.get_table_counts = db_metadata.get_table_counts
+DBConnector.get_tables_metadata =db_metadata.get_tables_metadata

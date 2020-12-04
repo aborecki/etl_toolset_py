@@ -3,7 +3,6 @@ from enum import Enum
 import getpass
 
 from pyetltools import logger
-from pyetltools.core import connector
 from pyetltools.core.attr_dict import AttrDict
 from pyetltools.core.connector import Connector
 
@@ -19,6 +18,13 @@ def get_default_env_manager():
 def set_default_env_manager(env_manager):
     global default_env_manager
     default_env_manager=env_manager
+
+
+def get_default_cache():
+    return get_default_env_manager().get_default_cache()
+
+def set_default_cache():
+    return get_default_env_manager().set_default_cache()
 
 class EnvManager:
     def __init__(self ):

@@ -1,8 +1,8 @@
 from pyetltools.core import connector
 from pyetltools.core.connector import Connector
 import os
-from pyetltools.infa import lib
-from pyetltools.infa.lib import load_infa_log_to_df
+
+from pyetltools.infa.lib.logs_parser import load_infa_log_to_df, parse_infa_log
 
 
 class InfaCmdConnector(Connector):
@@ -116,7 +116,7 @@ class InfaCmdConnector(Connector):
 
 
     def parse_log(self,output_file, log_df, output_only_matched=True):
-        parsed = lib.parse_infa_log(output_file, log_df, output_only_matched=output_only_matched)
+        parsed = parse_infa_log(output_file, log_df, output_only_matched=output_only_matched)
         return parsed
 
     def load_log(self, output_file):

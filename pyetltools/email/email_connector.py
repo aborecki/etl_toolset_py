@@ -22,9 +22,9 @@ class EmailConnector(Connector):
         super().validate_config()
 
 
-    def send_email(self, subject, text):
+    def send_email(self, subject, text, text_html=None,attachments=[]):
         assert self.to_emails, "To email cannot be None"
-        return self.send_email_to(self.to_emails, subject, text)
+        return self.send_email_to(self.to_emails, subject, text, text_html,attachments)
 
     def send_email_to(self, to, subject, text, text_html=None, attachments=[]):
         self.send_email_to_by(self.method, to, subject, text, text_html, attachments)
