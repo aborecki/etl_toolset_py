@@ -11,7 +11,16 @@ def filter_pandas_dataframe_fields_by_regex(self, regex):
 def filter_pandas_dataframe_field_by_regex(self, column_name, regex):
     return self[self[column_name].str.contains(regex, na=False)]
 
+def upper_all_columns(self):
+    return self.apply(lambda x: x.astype(str).str.upper())
 
+def upper_column_in_place(self, new_column_name, old_column_name=None):
+    if old_column_name is None:
+        old_column_name=new_column_name
+    self[new_column_name]=self[old_column_name].str.upper()
+
+pd.DataFrame.upper_column =upper_column_in_place
+pd.DataFrame.upper_all_columns =upper_all_columns
 pd.DataFrame.filter_by_regex = filter_pandas_dataframe_fields_by_regex
 pd.DataFrame.filter_column_by_regex = filter_pandas_dataframe_field_by_regex
 

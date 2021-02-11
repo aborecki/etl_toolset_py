@@ -7,6 +7,12 @@ class JiraIssue:
         self.content=content
         self.content_original=copy.deepcopy(content)
 
+    def _get_key_safe(self, d,k):
+        if k in d:
+            return d[k]
+        else:
+            return None
+
     def get_sub_issues(self):
         return list(map(lambda r: JiraIssue(r), self.content["fields"]["subtasks"]))
 
@@ -20,16 +26,16 @@ class JiraIssue:
         self.content["fields"]["description"]=new_desc
 
     def get_description(self):
-        return self.content["fields"]["description"]
+        return self._get_key_safe(self.content["fields"], "description")
 
     def get_sprint(self):
-        return self.content["fields"]["customfield_10004"]
+        return self._get_key_safe(self.content["fields"], "customfield_10004")
 
     def set_sprint(self, new_sprint):
         self.content["fields"]["customfield_10004"] = new_sprint
 
     def get_acceptance_crit(self):
-        return self.content["fields"]["customfield_10400"]
+        return self._get_key_safe(self.content["fields"], "customfield_10400")
 
     def set_acceptance_crit(self, new_accept):
         self.content["fields"]["customfield_10400"] = new_accept

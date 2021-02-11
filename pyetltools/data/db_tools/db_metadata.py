@@ -20,13 +20,13 @@ def get_objects_cached(db_con, force_reload_from_source=False, days_in_cache=999
 
     cache_key = ("DB_OBJECT_CACHE_" + db_con.key + "_" + db_con.data_source)
 
-    @RetryDecorator(manual_retry=False, fail_on_error=False)
+    @RetryDecorator(manual_retry=False, auto_retry=0, fail_on_error=False)
     @CachedDecorator(cache=get_default_cache(),cache_key=cache_key, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
     def get_objects():
 
         df=db_con.get_objects()
         if df is None:
-            raise Exception("No databases found")
+            raise Exception("No objects found")
         return df
     return get_objects()
 

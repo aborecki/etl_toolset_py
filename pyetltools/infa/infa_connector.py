@@ -10,6 +10,7 @@ from pyetltools.core.connector import Connector
 from pyetltools.data.db_connector import DBConnector
 from pyetltools.infa.infa_cmd_connector import InfaCmdConnector
 from pyetltools.infa.lib import infa_repo
+from pyetltools.infa.lib.infa_repo_sqls import get_obp_workflow
 
 from pyetltools.infa.lib.pv import get_persistence_values, get_persistence_values_hist
 
@@ -116,7 +117,7 @@ on a.OBJECT_SUBTYPE = d.CNX_OBJECT_SUBTYPE AND a.[OBJECT_Type] = d.CNX_OBJECT_TY
 
         sql_queries = """
                 SELECT * 
-          FROM [D00000TD10_PWC_REP_DEV].[dbo].[OPB_CM_QUERY]
+          FROM [dbo].[OPB_CM_QUERY]
         """
 
         def sql_query_max(suffix):
@@ -293,6 +294,9 @@ on a.OBJECT_SUBTYPE = d.CNX_OBJECT_SUBTYPE AND a.[OBJECT_Type] = d.CNX_OBJECT_TY
     def get_persistence_values(self, workflow_name):
         return get_persistence_values(self.infa_repo_db_connector_key, workflow_name)
 
+    def get_persistence_values_file(self, workflow_name):
+        return "Folder;Workflow;Session;PersistentVariable;Value;Runinst_name\n"+"\n".join(list(self.get_persistence_values(workflow_name)["PV_FILE"]))
+
     def get_persistence_values_hist(self, workflow_name):
         return get_persistence_values_hist(self.infa_repo_db_connector_key, workflow_name)
 
@@ -301,3 +305,6 @@ on a.OBJECT_SUBTYPE = d.CNX_OBJECT_SUBTYPE AND a.[OBJECT_Type] = d.CNX_OBJECT_TY
 
     def get_connections(self):
         return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_connections_with_server_name)
+
+    def get_workflows(self):
+        return self.get_infa_repo_db_connector().query_pandas(get_obp_workflow())

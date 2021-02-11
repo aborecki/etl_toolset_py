@@ -34,8 +34,9 @@ class InfaCmdConnector(Connector):
         return self.run_pmrep("connect", "-r", self.repository, "-d", self.domain,
                               "-s", self.security_domain, "-n", self.username, "-x", self.get_password())
 
-    def run_pmrep_export_workflow(self, workflow, folder, output_file):
-        self.run_pmrep_connect()
+    def run_pmrep_export_workflow(self, workflow, folder, output_file, connect=True):
+        if connect:
+            self.run_pmrep_connect()
         return self.run_pmrep("objectexport", "-n", workflow, "-o", "workflow", "-f", folder, "-m", "-s", "-b", "-r",
                               "-u", output_file)
 

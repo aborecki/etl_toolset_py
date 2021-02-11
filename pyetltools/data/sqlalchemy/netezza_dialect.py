@@ -1,5 +1,5 @@
 '''SQLAlchemy dialect for Netezza'''
-from sqlalchemy import sql, exc, Table
+from sqlalchemy import sql, exc, Table, DATETIME
 from sqlalchemy.dialects import registry
 from sqlalchemy.engine import reflection
 from sqlalchemy.connectors.pyodbc import PyODBCConnector
@@ -96,6 +96,14 @@ class NetezzaTypeCompiler(PGTypeCompiler):
     def visit_TEXT(self, _type):
         return 'NVARCHAR(100)'
 
+    def visit_TEXT(self, _type):
+        return 'NVARCHAR(100)'
+
+    def visit_TIMESTAMP(self, _type):
+        return 'TIMESTAMP'
+
+    def visit_FLOAT(self, _type):
+        return 'DOUBLE'
 
 
 class NetezzaCompiler(PGCompiler):

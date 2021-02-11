@@ -4,7 +4,7 @@ from pyetltools import get_default_logger
 from pyetltools.core.env_manager import get_default_cache
 import math
 
-def gen_insert(tablename, columns=None,df=None):
+def gen_insert(tablename, columns=None,df=None, rows=1):
 
     def isnan(x):
         try:
@@ -12,13 +12,16 @@ def gen_insert(tablename, columns=None,df=None):
         except Exception as e:
             return False
     if columns is not None:
-        values=["'"+i+"'" for i in  columns]
+        values=[["'"+i+"'" for i in  columns]]
     elif df is not None and len(df) >0:
-        values=["'"+str(i)+"'" if i and not isnan(i) else "NULL" for i in  df.iloc[0].values]
+        values=[]
+        for i in range(0, min(len(df), rows)):
+            values.append(["'"+str(i)+"'" if i and not isnan(i) else "NULL" for i in  df.iloc[i].values])
         columns=df.columns
     else:
         raise Exception("no columns nor df given.")
-    return "insert into "+tablename+" ("+ ",\n".join([i for i in  columns])+") values \n ("+ ",\n".join(values)+")"
+
+    return "\n".join([ "insert into "+tablename+" ("+ ",\n".join([i for i in  columns])+") values \n ("+ ",\n".join(val)+");" for val in values] )
 
 from datetime import datetime
 def get_now_timestamp():

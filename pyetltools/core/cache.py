@@ -10,8 +10,7 @@ from pathlib import Path
 import os.path as path
 import time
 import pickle
-
-
+import inspect
 
 from pyetltools import get_default_logger
 from pyetltools.tools.misc import get_now_timestamp
@@ -41,10 +40,14 @@ class CacheConnector(Connector):
         file=os.path.join(self.folder, cache_key)
         Path(self.folder).mkdir(parents=True, exist_ok=True)
         if isinstance(obj, pandas.DataFrame):
-            obj.to_parquet(file + ".parquet")
+            filename=file + ".parquet"
+            obj.to_parquet(filename)
+            logger.debug("Saved to cache as: " + filename)
         else:
-            with open(file + ".pickle.dump", 'wb') as f:
+            filename=file + ".pickle.dump"
+            with open(filename, 'wb') as f:
                 pickle.dump(obj, f)
+            logger.debug("Saved to cache as: " + filename)
         self._add_to_mem_cache(cache_key, obj)
 
     def remove_cached_data(self):
@@ -53,14 +56,23 @@ class CacheConnector(Connector):
         import os
         os.rename(self.folder, self.folder+ get_now_timestamp())
 
-    def get_from_cache_temp(self, retriever, force_reload_from_source=False, cache_keys=[]):
+    def get_text_hexdigest(self, text):
         import hashlib
-        import inspect
-        func_src=inspect.getsource(retriever)
+        md5_hash = hashlib.md5()
+        md5_hash.update(text)
+        digest = md5_hash.hexdigest()
+        return str(digest)
+
+    def get_from_cache_temp(self, retriever, force_reload_from_source=False, days_in_cache=None, cache_keys=[]):
+        #func_src=str(retriever.__code__.co_code)+str(retriever.__code__.co_freevars)+str(retriever.__code__.co_varnames)+str(retriever.__code__.co_consts)
+        func_src=inspect.getsource(retriever)+str(retriever.__code__.co_varnames)+str(retriever.__code__.co_consts)
+        import re
+        func_src = re.sub(r"\s+", "", func_src, flags=re.UNICODE)
         for ch in cache_keys:
             func_src+= str(ch)
-        key= "TEMP_OBJECT_CACHE_"+retriever.__name__+"_"+str(hashlib.md5(func_src.encode('utf-8')).hexdigest())
-        return self.get_from_cache(key, retriever, force_reload_from_source)
+        logger.debug("Caching key raw: "+func_src)
+        key= "TEMP_OBJECT_CACHE_"+retriever.__name__+"_"+self.get_text_hexdigest(func_src.encode('utf-8'))
+        return self.get_from_cache(key=key, retriever=retriever, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
 
 
     def _add_to_mem_cache(self,cache_key, obj, lastModTime=None):
@@ -72,8 +84,11 @@ class CacheConnector(Connector):
 
         reload_from_source=self.force_reload_from_source or force_reload_from_source
 
-        if not days_in_cache:
+        if  days_in_cache is None:
             days_in_cache = self.default_days_in_cache
+
+        if days_in_cache<0:
+            days_in_cache=float("inf")
 
         if ( self.force_reload_from_source):
             logger.debug("Cache lookup disabled - force_reload_from_source flag is ON. ")

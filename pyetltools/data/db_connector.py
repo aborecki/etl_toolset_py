@@ -147,9 +147,9 @@ class DBConnector(Connector):
             self.odbc_driver,
             self.integrated_security)
 
-    def get_odbc_connection(self, reuse_odbc_connection=False):
+    def get_odbc_connection(self, reuse_odbc_connection=False, autocommit=False):
         if not self._odbcconnection or reuse_odbc_connection==False:
-            self._odbcconnection= pyodbc.connect(self.get_odbc_conn_string())
+            self._odbcconnection= pyodbc.connect(self.get_odbc_conn_string(), autocommit=autocommit)
 
         return self._odbcconnection;
 
@@ -161,8 +161,11 @@ class DBConnector(Connector):
 
     def query(self, query, reuse_odbc_connection=False):
         """
-            Synonym for query_pandas
+            Runs query_pandas. If query does not start with "SELECT" then query will be transformed to "SELECT * FROM {query}"
         """
+        if not query.upper().lstrip().startswith("SELECT") and not query.upper().lstrip().startswith("WITH"):
+            query=f"SELECT * FROM {query}"
+
         return self.query_pandas(query, reuse_odbc_connection)
 
     def query_spark(self, query, register_temp_table=None):
@@ -237,12 +240,13 @@ class DBConnector(Connector):
 
         try:
             curs = conn.cursor()
-            logger.info("Executing:"  +sql)
+            logger.info("Executing:" +sql)
             curs.execute(sql)
-            logger.info("DONE")
             columns = [desc[0] for desc in curs.description]  # getting column headers
             # convert the list of tuples from fetchall() to a df
-            return pandas.DataFrame(curs.fetchall(), columns=columns)
+            data=curs.fetchall()
+            logger.info("Fetching DONE.")
+            return pandas.DataFrame(data, columns=columns)
 
         except jaydebeapi.DatabaseError as de:
             raise

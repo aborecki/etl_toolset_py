@@ -1,9 +1,13 @@
+import os
+import tempfile
+
 import pyspark
 import pandas
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 
+from pyetltools import logger
 from pyetltools.core import connector
 from pyetltools.core.connector import Connector
 from pyetltools.data.spark import tools as spark_tools
@@ -17,10 +21,12 @@ class SparkConnector(Connector):
             self._sql = self.get_spark_session().sql
         return self._sql
 
-    def sql_query(self, query, register_temp_table=None):
+    def sql_query(self, query, register_temp_table=None, persist=True):
         df=self.sql(query)
         if register_temp_table is not None:
             df.registerTempTable(register_temp_table)
+        if persist:
+            df.persist()
         return df
 
     def get_spark_session(self):
@@ -34,10 +40,12 @@ class SparkConnector(Connector):
     def parallelize(self):
         return self.get_spark_context()
 
-    def create_data_frame(self, c, schema="COLUMN string", register_temp_table=None):
+    def create_data_frame(self, c, schema="COLUMN string", register_temp_table=None, persist=True):
         df = self.get_spark_session().createDataFrame([(i,) for i in c], schema)
         if register_temp_table:
             df.registerTempTable(register_temp_table)
+        if persist:
+            df.persist()
         return df
 
     def __init__(self, key, master, options=None):
@@ -147,10 +155,19 @@ class SparkConnector(Connector):
 #             return spark.createDataFrame(pandas_df, p_schema).persist(pyspark.StorageLevel.MEMORY_AND_DISK_SER)
 
 
-def convert_pandas_df_to_spark(spark, pandas_df, spark_register_name=None):
-    convertedToSpark = DataFrameConverter().get_spark_df(spark, pandas_df)
+def convert_pandas_df_to_spark(spark, pandas_df, spark_register_name=None, convert_via_parquet=True, persist=True):
+    if convert_via_parquet:
+        tmp=tempfile.mkdtemp()
+        path = os.path.join(tmp, 'temp_convert_pandas_df_to_spark.parquet')
+        pandas_df.to_parquet(path)
+        convertedToSpark=spark.read.parquet(path)
+        logger.debug("Saved temp parquet file:" + path)
+    else:
+        convertedToSpark = DataFrameConverter().get_spark_df(spark, pandas_df)
     if spark_register_name is not None:
-        convertedToSpark.registerTempTable(spark_register_name)
+         convertedToSpark.registerTempTable(spark_register_name)
+    if persist:
+        convertedToSpark.persist()
     return convertedToSpark
 
 def df_to_excel(filename):

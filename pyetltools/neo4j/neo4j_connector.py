@@ -10,26 +10,29 @@ from pyetltools.neo4j.scripts import neo4jupyter
 
 class NEO4JConnector(Connector):
 
-    def __init__(self, key, host, port, username, password=None):
-        super().__init__(key=key)
+    def __init__(self, key, host, port=None, username=None, password=None, routing=False):
+        super().__init__(key)
         self.host = host
         self.port = port
         self.username = username
         self.password= password
+        self.driver=None
+        self.routing=routing
 
     def get_url(self):
-        return str(self.host) + ":" + str(self.port)
+        return str(self.host) +   ((":" + str(self.port)) if self.port is not None else "")
 
-    def __init__(self, config):
-        super().__init__(config)
-        self.driver = GraphDatabase.driver("bolt://" + self.get_url(),
+    def get_driver(self):
+        if self.driver is None:
+            self.driver = GraphDatabase.driver(  self.get_url(),
                                            auth=(self.username, self.get_password()))
+        return self.driver
 
     def get_graph(self):
-        return Graph(self.get_url(), auth=(self.username, self.get_password()))
+        return Graph(self.get_url(), auth=(self.username, self.get_password()), routing=self.routing)
 
     def get_session(self):
-        return self.driver.session()
+        return self.get_driver().session()
 
     def draw_graph(self, graph, options={}):
         return neo4jupyter.draw(graph, options)
@@ -40,4 +43,5 @@ class NEO4JConnector(Connector):
     def run_query_as_pandas_df(self, query, columns):
         return DataFrame(self.get_graph().run(query), columns=columns);
 
-
+    def validate_config(self):
+        pass
