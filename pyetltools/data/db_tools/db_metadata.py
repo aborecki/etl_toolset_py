@@ -1,15 +1,15 @@
 from pyetltools import get_default_logger
-from pyetltools.core.env_manager import get_default_cache
+from pyetltools.core.env_manager import get_env_manager
 from pyetltools.tools.misc import CachedDecorator, RetryDecorator
 import pandas as pd
 import re
 
-
+env = get_env_manager()
 def get_databases_cached(db_con, force_reload_from_source=False, days_in_cache=999999):
     cache_key = ("DB_DATABASES_CACHE_" + db_con.key + "_" + db_con.data_source)
 
     @RetryDecorator(manual_retry=False, fail_on_error=False)
-    @CachedDecorator(cache=get_default_cache(),cache_key=cache_key, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
+    @CachedDecorator(cache_key=cache_key, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
     def get_databases():
 
         df=db_con.get_databases()
@@ -21,7 +21,7 @@ def get_objects_cached(db_con, force_reload_from_source=False, days_in_cache=999
     cache_key = ("DB_OBJECT_CACHE_" + db_con.key + "_" + db_con.data_source)
 
     @RetryDecorator(manual_retry=False, auto_retry=0, fail_on_error=False)
-    @CachedDecorator(cache=get_default_cache(),cache_key=cache_key, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
+    @CachedDecorator(cache_key=cache_key, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
     def get_objects():
 
         df=db_con.get_objects()
@@ -78,7 +78,7 @@ def get_columns(db_con, force_reload_from_source=False, days_in_cache=999999):
     cache_key = ("DB_OBJECT_COLUMN_CACHE_" + db_con.key + "_" + db_con.data_source )
 
     @RetryDecorator(manual_retry=False, fail_on_error=False)
-    @CachedDecorator(cache=get_default_cache(), cache_key=cache_key, force_reload_from_source=force_reload_from_source,
+    @CachedDecorator( cache_key=cache_key, force_reload_from_source=force_reload_from_source,
                      days_in_cache=days_in_cache)
     def get_columns():
         df = db_con.get_columns_all_objects()

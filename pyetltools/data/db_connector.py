@@ -77,7 +77,7 @@ class DBConnector(Connector):
         if self.load_db_connectors:
             self.load_db_sub_connectors()
 
-        self.env = env_manager.get_default_env_manager()
+        self.env = env_manager.get_env_manager()
 
 
     def validate_config(self):

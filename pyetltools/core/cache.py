@@ -41,7 +41,7 @@ class CacheConnector(Connector):
         Path(self.folder).mkdir(parents=True, exist_ok=True)
         if isinstance(obj, pandas.DataFrame):
             filename=file + ".parquet"
-            obj.to_parquet(filename)
+            obj.to_parquet(filename, allow_truncated_timestamps=True)
             logger.debug("Saved to cache as: " + filename)
         else:
             filename=file + ".pickle.dump"
