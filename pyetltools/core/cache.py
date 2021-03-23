@@ -20,7 +20,7 @@ logger= get_default_logger()
 class CacheConnector(Connector):
     def __init__(self, key, folder=None, force_reload_from_source=False, default_days_in_cache=None):
         super().__init__(key),
-        self.folder = folderteams
+        self.folder = folder
         if folder is None:
             self.folder = os.path.join(tempfile.gettempdir(),"PYETLTOOLS_CACHE")
         Path(self.folder).mkdir(parents=True, exist_ok=True)
