@@ -6,5 +6,3 @@ def get_default_logger():
     return logger
 
 
-
-import pyetltools.data.db_tools.db_metadata

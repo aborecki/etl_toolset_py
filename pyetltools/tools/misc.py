@@ -1,8 +1,11 @@
 import functools
+import inspect
 
 from pyetltools import get_default_logger
-from pyetltools.core.env_manager import get_default_cache
 import math
+
+from pyetltools.core.env_manager import get_env_manager
+logger = get_default_logger()
 
 def gen_insert(tablename, columns=None,df=None, rows=1):
 
@@ -59,6 +62,16 @@ def input_YN( prompt):
     return ans == 'Y'
 
 
+def get_text_hexdigest(text):
+    import hashlib
+    md5_hash = hashlib.md5()
+    md5_hash.update(text)
+    digest = md5_hash.hexdigest()
+    return str(digest)
+
+
+
+
 class CachedDecorator(object):
     def __init__(self, cache=None, cache_key=None, force_reload_from_source=None, days_in_cache=None):
         self.force_reload_from_source=force_reload_from_source
@@ -70,12 +83,18 @@ class CachedDecorator(object):
         @functools.wraps(fn)
         def decorated(*args, **kwargs):
             if not self.cache:
-                self.cache= get_default_cache()
+                self.cache= get_env_manager().get_cache()
             def retriever():
                 return fn(*args, **kwargs)
-            return self.cache.get_from_cache(self.cache_key if self.cache_key else (args, kwargs) , retriever=retriever,
-                                                              force_reload_from_source=self.force_reload_from_source,
-                                                              days_in_cache=self.days_in_cache)
+            key_kwargs=dict(kwargs)
+            if "force_reload_from_source" in kwargs:
+                del key_kwargs["force_reload_from_source"]
+            if "days_in_cache" in kwargs:
+                del key_kwargs["days_in_cache"]
+            key=(str(self.cache_key)+str((args, key_kwargs)))
+            return self.cache.get_from_cache(key+"_"+get_text_hexdigest(key.encode('utf-8')), retriever=retriever,
+                                                              force_reload_from_source=kwargs["force_reload_from_source"] if "force_reload_from_source" in kwargs else self.force_reload_from_source,
+                                                              days_in_cache= kwargs["days_in_cache"] if "days_in_cache" in kwargs else  self.days_in_cache)
 
         return decorated
 

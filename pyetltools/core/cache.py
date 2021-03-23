@@ -20,7 +20,7 @@ logger= get_default_logger()
 class CacheConnector(Connector):
     def __init__(self, key, folder=None, force_reload_from_source=False, default_days_in_cache=None):
         super().__init__(key),
-        self.folder = folder
+        self.folder = folderteams
         if folder is None:
             self.folder = os.path.join(tempfile.gettempdir(),"PYETLTOOLS_CACHE")
         Path(self.folder).mkdir(parents=True, exist_ok=True)
@@ -41,7 +41,7 @@ class CacheConnector(Connector):
         Path(self.folder).mkdir(parents=True, exist_ok=True)
         if isinstance(obj, pandas.DataFrame):
             filename=file + ".parquet"
-            obj.to_parquet(filename)
+            obj.to_parquet(filename, allow_truncated_timestamps=True)
             logger.debug("Saved to cache as: " + filename)
         else:
             filename=file + ".pickle.dump"

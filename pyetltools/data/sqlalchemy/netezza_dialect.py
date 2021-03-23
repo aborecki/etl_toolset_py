@@ -20,7 +20,7 @@ import sqlalchemy.types as types
 from sqlalchemy.sql.ddl import CreateIndex
 
 
-class ST_GEOMETRY(types.UserDefinedType, types.Binary):
+class ST_GEOMETRY(types.UserDefinedType, types.BINARY):
     def get_col_spec(self, **kw):
         return "ST_GEOMETRY"
 

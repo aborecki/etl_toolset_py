@@ -79,7 +79,7 @@ class DBConnector(Connector):
         if self.load_db_connectors:
             self.load_db_sub_connectors()
 
-        self.env = env_manager.get_default_env_manager()
+        self.env = env_manager.get_env_manager()
 
 
     def validate_config(self):
@@ -433,16 +433,15 @@ class DBConnector(Connector):
         spark_tools.df_to_csv(dir)
 
 # Extending db_connector with methods
-
 DBConnector.get_objects_cached=db_metadata.get_objects_cached
-DBConnector.get_objects_for_multiple_dbs=db_metadata.get_objects_for_multiple_dbs
-DBConnector.get_objects_by_name=db_metadata.get_objects_by_name
-DBConnector.get_objects_by_name_regex=db_metadata.get_objects_by_name_regex
+DBConnector.get_objects_for_multiple_dbs_cached=db_metadata.get_objects_for_multiple_dbs_cached
+DBConnector.get_objects_by_name_cached=db_metadata.get_objects_by_name_cached
+DBConnector.get_objects_by_name_regex_cached=db_metadata.get_objects_by_name_regex_cached
 
-DBConnector.get_columns_for_multiple_dbs=db_metadata.get_columns_for_multiple_dbs
+DBConnector.get_columns_for_multiple_dbs_cached=db_metadata.get_columns_for_multiple_dbs_cached
 DBConnector.get_columns=db_metadata.get_columns
-DBConnector.get_columns_by_object_name=db_metadata.get_columns_by_object_name
-DBConnector.get_columns_by_object_name_regex=db_metadata.get_columns_by_object_name_regex
+DBConnector.get_columns_by_object_name_cached=db_metadata.get_columns_by_object_name_cached
+DBConnector.get_columns_by_object_name_regex_cached=db_metadata.get_columns_by_object_name_regex_cached
 
 DBConnector.get_table_counts = db_metadata.get_table_counts
 DBConnector.get_tables_metadata =db_metadata.get_tables_metadata

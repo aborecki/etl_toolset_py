@@ -9,30 +9,27 @@ from pyetltools.core.connector import Connector
 
 default_env_manager=None
 
-def get_default_env_manager():
+def get_env_manager():
     global default_env_manager
     if not default_env_manager:
         raise Exception("Default environment manager is not set")
     return default_env_manager
 
-def set_default_env_manager(env_manager):
+def set_env_manager(env_manager):
     global default_env_manager
     default_env_manager=env_manager
 
 
-def get_default_cache():
-    return get_default_env_manager().get_default_cache()
 
-def set_default_cache():
-    return get_default_env_manager().set_default_cache()
 
 class EnvManager:
-    def __init__(self ):
+    def __init__(self, cache=None):
         self.passwords = dict()
         self.connectors = AttrDict()
         self._resources= dict()
         self._connectors = dict()
         self._connector_to_resource_key=dict()
+        self.cache = cache
 
     def add_connector(self, environment=None, resource_type=None, resource_subtype=None, resource_sub_id=None, conn=None, add_as_attribute=True):
         assert conn is not None, "Connector cannot be None"
@@ -44,6 +41,7 @@ class EnvManager:
         self._resources[res_key]=conn
         self._connector_to_resource_key[conn]=res_key
         conn.set_env_manager(self)
+
         return self.add_connector_with_key(conn, connector_key=tuple([x.name if isinstance(x, Enum) else str(x) for x in res_key if x]), add_as_attribute=add_as_attribute)
 
     def add_connector_with_key(self, conn, connector_key=None, add_as_attribute=True):
@@ -130,9 +128,16 @@ class EnvManager:
             raise Exception(f"Connector {conn} not found. Available connectors: " + str(list(self._connectors.keys())))
         return self._connectors[conn]
 
-    #def validate_config():
-    #    for conn_key in self._connectors:
-    #        self._connectors.get(conn_key).validate_config()
+    def get_default_cache(self):
+        return self.get_connector_by_key("CACHE")
+
+    def get_cache(self):
+        if not self.cache:
+            self.cache = self.get_default_cache()
+        return self.cache
+
+    def set_cache(self, cache):
+        self.cache = cache
 
     def validate_config(self):
         for conn in self._connectors:
