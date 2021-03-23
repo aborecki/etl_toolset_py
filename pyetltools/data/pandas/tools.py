@@ -1,8 +1,12 @@
+import os
+
 import pandas as pd
 import numpy as np
 from pandas import ExcelWriter
 
 from pyetltools import logger
+from pyetltools.tools.misc import get_now_timestamp
+
 
 def filter_pandas_dataframe_fields_by_regex(self, regex):
     return self[self.apply(lambda row: row.astype(str).str.contains(regex).any(), axis=1)]
@@ -19,12 +23,21 @@ def upper_column_in_place(self, new_column_name, old_column_name=None):
         old_column_name=new_column_name
     self[new_column_name]=self[old_column_name].str.upper()
 
+def show_pandas_df_excel(self):
+    ts =get_now_timestamp()
+    filename = f"c:\\Temp\\output_{ts}.xlsx"
+    save_dataframes_to_excel([self], ["OUTPUT"], filename)
+    import os
+    os.system(f"start  {filename}")
+
 pd.DataFrame.upper_column =upper_column_in_place
 pd.DataFrame.upper_all_columns =upper_all_columns
 pd.DataFrame.filter_by_regex = filter_pandas_dataframe_fields_by_regex
 pd.DataFrame.filter_column_by_regex = filter_pandas_dataframe_field_by_regex
+pd.DataFrame.show_in_excel = show_pandas_df_excel
 
-def save_dataframes_to_excel(dfs, sheet_names, output_file):
+
+def save_dataframes_to_excel(dfs, sheet_names, output_file, show_in_excel=False):
     logger.info("Saving dataframes to excel: "+output_file)
     writer = ExcelWriter(output_file,  engine='xlsxwriter')
     workbook = writer.book
@@ -47,6 +60,12 @@ def save_dataframes_to_excel(dfs, sheet_names, output_file):
         worksheet.add_table(0, 0, len(df.index), len(df.columns), {'columns': [{'header':'Idx'}] + [  {'header': c } for c in list(df)   ]})
 
     writer.save()
+
+    if show_in_excel:
+        os.system(f"start  {output_file}")
+
+
+
 
 
 def create_pandas_dataframe(data, columns):

@@ -303,6 +303,9 @@ on a.OBJECT_SUBTYPE = d.CNX_OBJECT_SUBTYPE AND a.[OBJECT_Type] = d.CNX_OBJECT_TY
     def get_wf_metadata_extension_values(self):
         return infa_repo.get_wf_metadata_extension_values(self.infa_repo_db_connector_key)
 
+    def get_metadata_extension_values(self):
+        return infa_repo.get_metadata_extension_values(self.infa_repo_db_connector_key)
+
     def get_connections(self):
         return self.get_infa_repo_db_connector().query_pandas(self.Sqls.sql_connections_with_server_name)
 

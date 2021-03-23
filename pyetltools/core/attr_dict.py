@@ -12,9 +12,9 @@ class  AttrDict(object):
         return self.__getattr__(key)
 
     def __repr__(self):
-        ret="Available attributes:\n"
+        ret=""
         for k,v in self._data.items():
-            ret+= str(k)+" : "+"\n".join([i for i in repr(v).splitlines()])+"\n"
+            ret+= str(k)+"\n"+"\n".join(["  "+str(i) for i in repr(v).splitlines()])+"\n"
         return ret
 
     def keys(self):

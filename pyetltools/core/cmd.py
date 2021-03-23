@@ -1,6 +1,7 @@
 import os
 import subprocess
 
+from pyetltools import get_default_logger
 
 
 class Cmd():
@@ -13,6 +14,7 @@ class Cmd():
         self.working_dir=working_dir
         self.default_args=args
         self.default_shell=shell
+        self.logger= get_default_logger()
 
     def save_env(self):
         for key, value in self.env_override.items():
@@ -48,19 +50,19 @@ class Cmd():
         else:
             args = [self.get_executable_full_path()] + list(self.default_args)
 
-        print("Command:"+" ".join(args))
-        print("Working dir:"+str(self.working_dir))
+        self.logger.debug("Command:"+" ".join(args))
+        self.logger.debug("Working dir:"+str(self.working_dir))
         res = subprocess.run(args,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.working_dir, shell=shell)
         self.restore_env()
-        print("STDOUT:")
+        self.logger.debug("STDOUT:")
         stdout=res.stdout.decode("latin-1")
-        print(stdout)
-        print("STDERR:")
+        self.logger.debug(stdout)
+        self.logger.debug("STDERR:")
         stderror=res.stderr.decode("latin-1")
-        print(stderror)
-        print("RESULT:")
-        print(res.returncode)
+        self.logger.debug(stderror)
+        self.logger.debug("RESULT:")
+        self.logger.debug(res.returncode)
         if res.returncode != 0:
             raise Exception("Command failed with error code:"+str(res.returncode))
         return res

@@ -19,7 +19,7 @@ class DBDialect:
         pass
 
     # constructs odbc connection string in the form DSN=NZFTST2;DATABASE={database};UID={username}
-    def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security):
+    def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver, integrated_security, odbc_conn_options):
         ret = ""
         if dsn is not None:
             ret = ret + f"DSN={dsn};"
@@ -35,6 +35,9 @@ class DBDialect:
             ret = ret + f"Driver={{{odbc_driver}}};"
         if integrated_security:
             ret = ret + f"Trusted_Connection=yes;"
+        if odbc_conn_options is not None:
+            ret = ret + odbc_conn_options
+
         return ret
 
     @abstractmethod

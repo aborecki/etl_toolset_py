@@ -36,7 +36,7 @@ class DB2DBDialect(DBDialect):
                                                       urllib.parse.quote_plus( odbc_conn_string))
 
     def get_odbc_conn_string(self, dsn, host, port, data_source, username, password_callback, odbc_driver,
-                             integrated_security):
+                             integrated_security, odbc_conn_options):
         ret = ""
         if dsn is not None:
             ret = ret + f"DSN={dsn};"

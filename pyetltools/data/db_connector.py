@@ -42,7 +42,8 @@ class DBConnector(Connector):
                  supports_odbc=None,
                  load_db_connectors=None,
                  spark_connector="SPARK",
-                 db_dialect_class=None
+                 db_dialect_class=None,
+                 odbc_conn_options=None
                  ):
         super().__init__(key=key)
         self.jdbc_conn_string = jdbc_conn_string
@@ -55,6 +56,7 @@ class DBConnector(Connector):
         self.data_source = data_source
         self.odbc_driver = odbc_driver
         self.jdbc_driver = jdbc_driver
+        self.odbc_conn_options = odbc_conn_options
 
         self.integrated_security = integrated_security
         self.supports_jdbc = supports_jdbc
@@ -109,7 +111,8 @@ class DBConnector(Connector):
                  supports_odbc=self.supports_odbc,
                  load_db_connectors=self.load_db_connectors,
                  spark_connector=self.spark_connector,
-                 db_dialect_class=self.db_dialect_class)
+                 db_dialect_class=self.db_dialect_class,
+                 odbc_conn_options=self.odbc_conn_options)
 
     def get_password(self):
         if self.integrated_security:
@@ -132,7 +135,8 @@ class DBConnector(Connector):
             self.username,
             self.get_password, #passing as callback so function will use it only if needed
             self.odbc_driver,
-            self.integrated_security)
+            self.integrated_security,
+            self.odbc_conn_options)
 
     def get_jdbc_conn_string(self):
         if self.jdbc_conn_string:
@@ -328,8 +332,6 @@ class DBConnector(Connector):
                     fields = tuple(map(lambda x: x[0], cursor.description))
                     recs.insert(0, fields)
                 res.append(recs)
-                for row in cursor.fetchall():
-                    print(row)
             except pyodbc.ProgrammingError:
                 pass
             while cursor.nextset():  # NB: This always skips the first resultset
@@ -339,9 +341,6 @@ class DBConnector(Connector):
                         fields = tuple(map(lambda x: x[0], cursor.description))
                         recs.insert(0, fields)
                     res.append(recs)
-                    for row in cursor.fetchall():
-                        print(row)
-                    # break
                 except pyodbc.ProgrammingError:
                     continue
             return res;
@@ -421,6 +420,9 @@ class DBConnector(Connector):
     def __exit__(self, exc_type, exc_val, exc_tb):
         # maybe we should close the connection here ????
         pass
+
+    def __repr__(self):
+        return f"{self.__class__.__name__} - {self.key} "+ ( " data source:"+self.data_source if self.data_source is not None else "" )
 
     @classmethod
     def df_to_excel(filename):

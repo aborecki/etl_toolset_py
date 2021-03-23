@@ -17,3 +17,14 @@ SELECT s.SUBJ_NAME,
 		and	a.ATTR_ID = 1
 		and t.IS_VISIBLE = 1
 		--AND NOT (METADATA_EXTN_NAME = 'OPC_jobname' AND ((METADATA_EXTN_VALUE LIKE 'UDFASE%' OR METADATA_EXTN_VALUE LIKE '') AND t.task_name!='_____OPC_dummy'))""")
+
+
+def get_metadata_extension_values(db_con):
+    return db_con.query("""
+    SELECT s.SUBJ_NAME, 
+		m.METADATA_EXTN_NAME, 
+		convert(varchar(2000),m.METADATA_EXTN_VALUE) as METADATA_EXTN_VALUE,
+		m.*
+	FROM dbo.REP_METADATA_EXTNS m 
+		INNER JOIN dbo.OPB_SUBJECT s ON m.SUBJECT_ID = s.SUBJ_ID 
+    """)

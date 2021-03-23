@@ -45,3 +45,14 @@ class NEO4JConnector(Connector):
 
     def validate_config(self):
         pass
+
+    def get_import_directory(self):
+        try:
+            self.get_graph().run("""LOAD CSV WITH HEADERS FROM "File:///xxxxxxxxxxx.csv" AS row WITH row 
+            MERGE (w:X)""")
+        except Exception as e:
+            dirname = str(e).replace(
+                "[Statement.ExternalResourceFailed] Couldn't load the external resource at: file:/", "").replace(
+                "xxxxxxxxxxx.csv", "")
+        return dirname
+

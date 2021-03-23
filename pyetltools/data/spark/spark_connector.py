@@ -17,7 +17,7 @@ class SparkConnector(Connector):
 
     @property
     def sql(self):
-        if not self._sql:
+        if self._sql is None:
             self._sql = self.get_spark_session().sql
         return self._sql
 
@@ -30,7 +30,7 @@ class SparkConnector(Connector):
         return df
 
     def get_spark_session(self):
-        if not self._spark_session:
+        if self._spark_session is None:
             self._spark_session = get_spark_session(self.master, self.options)
         return self._spark_session
 
@@ -189,6 +189,7 @@ def get_spark_session(master, spark_params={}):
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
+    logger.debug("getOrCreate'd Spark session")
     return spark
 
 
