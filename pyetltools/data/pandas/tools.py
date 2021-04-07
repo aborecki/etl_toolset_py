@@ -56,8 +56,8 @@ def save_dataframes_to_excel(dfs, sheet_names, output_file, show_in_excel=False)
         worksheet = writer.sheets[sheet_names[n]]
         for i, width in enumerate(get_col_widths(df)):
             worksheet.set_column(i, i, min(width,100))
-
-        worksheet.add_table(0, 0, len(df.index), len(df.columns), {'columns': [{'header':'Idx'}] + [  {'header': c } for c in list(df)   ]})
+        if len(df.index)>0:
+            worksheet.add_table(0, 0, len(df.index), len(df.columns), {'columns': [{'header':'Idx'}] + [  {'header': c } for c in list(df)   ]})
 
     writer.save()
 

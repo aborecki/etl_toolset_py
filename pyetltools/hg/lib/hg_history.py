@@ -16,14 +16,14 @@ def save_file(output_dir, rel_path, rev, file_contents):
 
 HGFileHist = namedtuple("HGFileHist", 'path rel_path rev commited_date author summary file_content')
 
-def extract_files_history(hg_conn,files_rglob_regex, output_dir, file_filter=lambda x: True):
+def extract_files_history(hg_conn,files_rglob_regex, output_dir, file_filter=lambda filename, src: True):
     wd=hg_conn.get_working_dir()
     for path in Path(wd).rglob(files_rglob_regex):
         rel_path = path.relative_to(hg_conn.get_working_dir())
         logger.debug(rel_path)
         with open(path, 'r') as file:
             file_str = file.read()
-        if file_filter(file_str):
+        if file_filter(path, file_str):
             log = hg_conn.get_log(str(rel_path))
             for l in log:
                 rev, _ = l["changeset"].split(":")

@@ -10,6 +10,8 @@ from pyetltools import logger
 #  Module responsible for:
 #  Creating connectors from config
 
+
+
 class ConfigValue:
     def __init__(self, key: str, value):
         self.key = key
@@ -31,7 +33,8 @@ class Connector(metaclass=ABCMeta):
 
     def get_password(self):
         if self.password is None:
-            return self.env_manager.get_password(self.key)
+            from pyetltools.core.env_manager import get_env_manager
+            return get_env_manager().get_password(self.key)
         else:
             return self.password
 

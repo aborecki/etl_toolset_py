@@ -2,7 +2,7 @@ from pyetltools.core.env_manager import get_env_manager
 from pyetltools.data.db_connector import DBConnector
 
 
-class BECDBConnector(DBConnector):
+class CachedDBConnector(DBConnector):
     def validate_config(self):
         super().validate_config()
 

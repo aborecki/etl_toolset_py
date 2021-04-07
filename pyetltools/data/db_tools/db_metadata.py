@@ -1,6 +1,7 @@
 from pyetltools import get_default_logger
 from pyetltools.core.env_manager import get_env_manager
-from pyetltools.tools.misc import CachedDecorator, RetryDecorator
+from pyetltools.tools.misc import RetryDecorator
+from pyetltools.core.cache import CachedDecorator
 import pandas as pd
 import re
 
@@ -10,11 +11,11 @@ def get_databases_cached(db_con, force_reload_from_source=False, days_in_cache=9
 
     @RetryDecorator(manual_retry=False, fail_on_error=False)
     @CachedDecorator(cache_key=cache_key, force_reload_from_source=force_reload_from_source, days_in_cache=days_in_cache)
-    def get_databases():
+    def get_databases(db_con):
 
         df=db_con.get_databases()
         return df
-    return get_databases()
+    return get_databases(db_con)
 
 def get_objects(db_con):
     df=db_con.get_objects()
@@ -70,7 +71,7 @@ def get_objects_by_name_regex_cached(db_con, object_name_regex, db_name_regex=".
 #
 #     return get_cache().get_from_cache(cache_key, retriever=get_objects, force_reload_from_source= force_reload_from_source)
 
-def get_columns():
+def get_columns(db_con):
     df = db_con.get_columns_all_objects()
     if df is None:
         print("No columns found")
@@ -81,7 +82,7 @@ def get_columns():
 @RetryDecorator(manual_retry=False, fail_on_error=False)
 @CachedDecorator()
 def get_columns_cached(db_con, **kwargs):
-    return get_columns()
+    return get_columns(db_con)
 
 def get_columns_for_multiple_dbs_cached(db_con, db_name_regex=".*", **kwargs):
     ret=[]
@@ -91,7 +92,7 @@ def get_columns_for_multiple_dbs_cached(db_con, db_name_regex=".*", **kwargs):
         return None
 
     for db in dbs:
-        df = get_columns(db_con.with_data_source(db), **kwargs)
+        df = get_columns_cached(db_con.with_data_source(db), **kwargs)
         if df is None:
             get_default_logger().warn("No columns found in "+db)
         else:

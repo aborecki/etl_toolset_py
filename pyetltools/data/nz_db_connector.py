@@ -1,46 +1,13 @@
 from pyetltools import get_default_logger
-from pyetltools.core.env_manager import get_env_manager
-from pyetltools_bec.data.bec_db_connector import BECDBConnector
 import tempfile
 import os
 from pathlib import Path
 
-class NZDBConnector(BECDBConnector):
-    def exec_temp_access(self, group="", comment=""):
-        print(self.execute_statement(f"exec sp_tempaccess('{group}','{comment}')"))
+from pyetltools.data.cached_db_connector import CachedDBConnector
+from pyetltools.data.db_connector import DBConnector
 
 
-    def get_group_env_name(self, env):
-        env_name = env.value;
-        if "FTST" in env_name:
-                env_name="FTST"
-        if "PROD" in env_name:
-                env_name="PROD"
-        return env_name
-
-    def exec_temp_access_read(self, comment=""):
-
-        env=get_env_manager().get_environment_for_connector(self)
-
-        env_name = self.get_group_env_name(env)
-
-        self.exec_temp_access(f"UG_{env_name}_DBO_R", comment)
-
-    def exec_temp_access_admin(self, comment=""):
-
-        env=get_env_manager().get_environment_for_connector(self)
-
-        env_name = self.get_group_env_name(env)
-
-        self.exec_temp_access(f"UG_{env_name}_DBO_A", comment)
-
-    def exec_temp_access_meta_admin(self, comment=""):
-
-        env=get_env_manager().get_environment_for_connector(self)
-
-        env_name = self.get_group_env_name(env)
-
-        self.exec_temp_access(f"UG_{env_name}_META_A", comment)
+class NZDBConnector(DBConnector):
 
     def insert_df_to_table(self, df, target_table, truncate_table=False, temp_file_dir=None, null_value="?"):
         trunc_stmt = ""
@@ -54,6 +21,9 @@ class NZDBConnector(BECDBConnector):
         Path(temp_file_dir).mkdir(parents=True, exist_ok=True)
 
         df = df.fillna(null_value)
+        df = df.replace(r'\\', r'\\\\',regex=True)
+        df=df.replace(',', r'\,', regex=True)
+        df = df.replace('\n', '\\\n', regex=True)
         filename = temp_file_dir + f"\\{target_table}.csv"
         df.to_csv(filename, index=False)
 
@@ -72,6 +42,7 @@ class NZDBConnector(BECDBConnector):
                 LogDir '{temp_file_dir}'
                 skiprows 1
                 NullValue '{null_value}'
+                QuotedValue 'Double'
             ); commit;
             """
         get_default_logger().debug("SQL:"+sql)

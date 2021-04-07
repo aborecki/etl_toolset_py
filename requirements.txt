@@ -1,14 +1,9 @@
-colored
 pandas
 xlsxwriter
 pyodbc
-jaydebeapi
-sqlalchemy
 pyspark
 requests
-mechanize
-bs4
 lxml
-pywin32
-python-Levenshtein
 pyarrow
+jaydebeapi
+sqlalchemy

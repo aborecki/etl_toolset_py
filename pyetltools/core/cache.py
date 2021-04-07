@@ -1,3 +1,4 @@
+import functools
 import os
 
 import tempfile
@@ -13,14 +14,15 @@ import pickle
 import inspect
 
 from pyetltools import get_default_logger
-from pyetltools.tools.misc import get_now_timestamp
+from pyetltools.core.env_manager import get_env_manager
+from pyetltools.tools.misc import get_now_timestamp, get_text_hexdigest
 
 logger= get_default_logger()
 
 class CacheConnector(Connector):
     def __init__(self, key, folder=None, force_reload_from_source=False, default_days_in_cache=None):
         super().__init__(key),
-        self.folder = folderteams
+        self.folder = folder
         if folder is None:
             self.folder = os.path.join(tempfile.gettempdir(),"PYETLTOOLS_CACHE")
         Path(self.folder).mkdir(parents=True, exist_ok=True)
@@ -167,3 +169,28 @@ class CacheConnector(Connector):
         return  path.getmtime(file)
 
 
+class CachedDecorator(object):
+    def __init__(self, cache=None, cache_key=None, force_reload_from_source=None, days_in_cache=None):
+        self.force_reload_from_source=force_reload_from_source
+        self.days_in_cache = days_in_cache
+        self.cache_key=cache_key
+        self.cache=cache
+
+    def __call__(self, fn):
+        @functools.wraps(fn)
+        def decorated(*args, **kwargs):
+            if not self.cache:
+                self.cache= get_env_manager().get_cache()
+            def retriever():
+                return fn(*args, **kwargs)
+            key_kwargs=dict(kwargs)
+            if "force_reload_from_source" in kwargs:
+                del key_kwargs["force_reload_from_source"]
+            if "days_in_cache" in kwargs:
+                del key_kwargs["days_in_cache"]
+            key=(str(self.cache_key)+repr((args, key_kwargs)))
+            return self.cache.get_from_cache(key+"_"+get_text_hexdigest(key.encode('utf-8')), retriever=retriever,
+                                                              force_reload_from_source=kwargs["force_reload_from_source"] if "force_reload_from_source" in kwargs else self.force_reload_from_source,
+                                                              days_in_cache= kwargs["days_in_cache"] if "days_in_cache" in kwargs else  self.days_in_cache)
+
+        return decorated

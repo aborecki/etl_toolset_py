@@ -12,14 +12,12 @@ default_env_manager=None
 def get_env_manager():
     global default_env_manager
     if not default_env_manager:
-        raise Exception("Default environment manager is not set")
+        set_env_manager(EnvManager())
     return default_env_manager
 
 def set_env_manager(env_manager):
     global default_env_manager
     default_env_manager=env_manager
-
-
 
 
 class EnvManager:
@@ -31,23 +29,23 @@ class EnvManager:
         self._connector_to_resource_key=dict()
         self.cache = cache
 
-    def add_connector(self, environment=None, resource_type=None, resource_subtype=None, resource_sub_id=None, conn=None, add_as_attribute=True):
-        assert conn is not None, "Connector cannot be None"
+    def add_connector(self, environment=None, resource_type=None, resource_subtype=None, resource_sub_id=None, connector=None, add_as_attribute=True):
+        assert connector is not None, "Connector cannot be None"
         assert resource_type is not None, "resource_type cannot be None"
         #c=self.get_connector(connector)
         res_key=(resource_type, environment, resource_subtype, resource_sub_id)
         if res_key in self._resources:
             raise Exception("Resource already added for "+str(res_key))
-        self._resources[res_key]=conn
-        self._connector_to_resource_key[conn]=res_key
-        conn.set_env_manager(self)
+        self._resources[res_key]=connector
+        self._connector_to_resource_key[connector]=res_key
+        connector.set_env_manager(self)
 
-        return self.add_connector_with_key(conn, connector_key=tuple([x.name if isinstance(x, Enum) else str(x) for x in res_key if x]), add_as_attribute=add_as_attribute)
+        return self.add_connector_with_key(connector, connector_key=tuple([x.name if isinstance(x, Enum) else str(x) for x in res_key if x]), add_as_attribute=add_as_attribute)
 
-    def add_connector_with_key(self, conn, connector_key=None, add_as_attribute=True):
-        assert connector_key is not None or conn.key is not None, "Connector.key or connector_key parameter has to be set."
+    def add_connector_with_key(self, connector, connector_key=None, add_as_attribute=True):
+        assert connector_key is not None or connector.key is not None, "Connector.key or connector_key parameter has to be set."
         if not connector_key:
-            connector_key = conn.key
+            connector_key = connector.key
         if isinstance(connector_key, str):
             keys = connector_key.split("/")
             connector_key_str=connector_key
@@ -55,11 +53,11 @@ class EnvManager:
             keys= connector_key
             connector_key_str="/".join(connector_key)
 
-        if isinstance(conn, Connector):
-            if not conn.key:
-                conn.key=connector_key_str
+        if isinstance(connector, Connector):
+            if not connector.key:
+                connector.key=connector_key_str
 
-            conn.set_env_manager(self)
+            connector.set_env_manager(self)
 
         if add_as_attribute:
             curr_group = self.connectors
@@ -72,16 +70,16 @@ class EnvManager:
                 else:
                     curr_group = curr_group._data[group_name]
             if isinstance(curr_group, AttrDict):
-                 curr_group._add_attr(keys[-1], conn)
+                 curr_group._add_attr(keys[-1], connector)
             elif isinstance(curr_group, Connector):
                 logger.warn(f"Cannot add {connector_key} as attribute as another connector on this path is already added.")
             else:
-                class WithAttrDict(conn.__class__, AttrDict):
+                class WithAttrDict(connector.__class__, AttrDict):
                     pass
-                conn.__class__ = WithAttrDict
-            self._connectors[connector_key_str] = conn
+                connector.__class__ = WithAttrDict
+            self._connectors[connector_key_str] = connector
 
-        return conn
+        return connector
 
     def get_connector(self,  environment=None , resource_type=None, resource_subtype=None, resource_sub_id=None):
         con_key = (resource_type, environment, resource_subtype, resource_sub_id)

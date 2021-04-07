@@ -2,6 +2,8 @@ import copy
 from abc import abstractmethod
 
 import pyodbc
+from pandas.io.sql import DatabaseError
+
 import pandas
 import jaydebeapi
 
@@ -163,14 +165,14 @@ class DBConnector(Connector):
             cond_sql=f" WHERE {where}"
         return self.query(f"SELECT * FROM {table_name} {cond_sql}" )
 
-    def query(self, query, reuse_odbc_connection=False):
+    def query(self, query, reuse_odbc_connection=False, args=[]):
         """
             Runs query_pandas. If query does not start with "SELECT" then query will be transformed to "SELECT * FROM {query}"
         """
         if not query.upper().lstrip().startswith("SELECT") and not query.upper().lstrip().startswith("WITH"):
             query=f"SELECT * FROM {query}"
 
-        return self.query_pandas(query, reuse_odbc_connection)
+        return self.query_pandas(query, reuse_odbc_connection, args=args)
 
     def query_spark(self, query, register_temp_table=None):
         if self.supports_jdbc:
@@ -195,23 +197,25 @@ class DBConnector(Connector):
             ret.registerTempTable(register_temp_table)
         return ret
 
-    def query_pandas(self, query, reuse_odbc_connection=False):
+    def query_pandas(self, query, reuse_odbc_connection=False, args=[]):
         """
             Reads database source to pandas dataframe.
             Depending on the configuration of the connector either odbc, jdbc via spark or jaydebeapi jdbc will be used
 
             :param reuse_odbc_connection: if set connection will be reused (currently works only for ODBC sources)
         """
-        logger.debug(f"Executing query on connector {str(self)}:" + query)
+        logger.debug(f"Executing query on connector {str(self)}:" + query +" with args:"+str(args))
         if self.supports_odbc:
              logger.debug(" using ODBC")
              conn = self.get_odbc_connection(reuse_odbc_connection)
-             return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None)
+             return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None, params=args)
         else:
-             if self.jdbc_access_method=="spark":
+            if len(args)>0:
+                raise Exception("Query args not supported for spark od jaydebeapi.")
+            if self.jdbc_access_method=="spark":
                 logger.debug("\nWarning: conversion from spark df to pandas needed.")
                 return self.query_spark(query).toPandas()
-             else:
+            else:
                 logger.debug("\nUsing jaydebeapi jdbc access method")
                 return self.read_jdbc_to_pd_df(query, self.jdbc_driver, self.get_jdbc_conn_string(),[self.username, self.get_password()])
 
@@ -318,14 +322,27 @@ class DBConnector(Connector):
         else:
             raise Exception("ODBC support required")
 
-    def execute_statement(self, statement, add_col_names=False, reuse_odbc_connection=False):
+    def execute_statement(self, statement, add_col_names=False, reuse_odbc_connection=False, ignore_error=False, args=[], commit=False):
 
         if self.supports_odbc:
             conn = self.get_odbc_connection(reuse_odbc_connection )
             cursor = conn.cursor()
-            cursor.execute(statement)
+            try:
+                logger.debug(f"Executing statement:{statement}")
+                cursor.execute(statement, *args)
+            except DatabaseError as ex:
+                logger.info(f"DB Exception caught:{ex}.\nReconnecting.")
+                conn = self.get_odbc_connection(reuse_odbc_connection=False)
+                cursor.execute(statement, *args)
+            except Exception as ex:
+                if ignore_error:
+                    logger.debug(f"Ignored exception when running {statement}:" + str(ex))
+                else:
+                    raise ex
+
+
             res = []
-            print("rowcount:" + str(cursor.rowcount))
+            rowcount = cursor.rowcount
             try:
                 recs = cursor.fetchall()
                 if add_col_names:
@@ -343,7 +360,9 @@ class DBConnector(Connector):
                     res.append(recs)
                 except pyodbc.ProgrammingError:
                     continue
-            return res;
+            if commit:
+                conn.execute("COMMIT;")
+            return (rowcount,res);
         else:
              if self.jdbc_access_method=="spark":
                 print("\nWarning: conversion from spark df to pandas needed.")
