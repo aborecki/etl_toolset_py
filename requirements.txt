@@ -1,7 +1,6 @@
 colored
 pandas
 xlsxwriter
-pyspark
 pyodbc
 jaydebeapi
 sqlalchemy
@@ -10,10 +9,6 @@ requests
 mechanize
 bs4
 lxml
+pywin32
 python-Levenshtein
 pyarrow
-py2neo
-neo4j
-IPython
-pywin32
-matplotlib
