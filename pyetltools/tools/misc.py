@@ -59,6 +59,12 @@ def input_YN( prompt):
         ans = input(prompt).upper()
     return ans == 'Y'
 
+def input_answer( prompt, answers, true_ans):
+    ans = None
+    while ans not in [a.upper() for a in answers]:
+        ans = input(prompt).upper()
+    return ans == true_ans.upper()
+
 
 def get_text_hexdigest(text):
     import hashlib

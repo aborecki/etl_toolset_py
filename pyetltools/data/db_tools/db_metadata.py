@@ -106,9 +106,15 @@ def get_columns_for_multiple_dbs_cached(db_con, db_name_regex=".*", **kwargs):
 
 
 @CachedDecorator()
-def get_columns_by_object_name_cached(db_con, object_name, db_name_regex=".*", **kwargs):
+def get_columns_by_object_name_cached_multiple_dbs(db_con, object_name, db_name_regex=".*", **kwargs):
     df= get_columns_for_multiple_dbs_cached(db_con, db_name_regex, **kwargs)
     return df.query(f"TABLE_NAME.str.upper()== '{object_name.upper()}'").sort_values("ORDINAL_POSITION")
+
+@CachedDecorator()
+def get_columns_by_object_name_cached(db_con, object_name, **kwargs):
+    df= get_columns_cached(db_con, **kwargs)
+    return df.query(f"TABLE_NAME.str.upper()== '{object_name.upper()}'").sort_values("ORDINAL_POSITION")
+
 
 def get_columns_by_object_name_regex_cached(db_con, object_name_regex, db_name_regex=".*", **kwargs):
     df= get_columns_for_multiple_dbs_cached(db_con, db_name_regex, **kwargs)

@@ -4,8 +4,13 @@ from pyetltools.data.db_dialect import DBDialect
 
 
 class DB2DBDialect(DBDialect):
+    def get_sql_list_columns_all_objects(self):
+        return f"""
+              SELECT name, tbname, tbcreator, colno, coltype, length, scale  FROM  sysibm.syscolumns 
+           """
+
     def get_sql_list_objects(self):
-        return "select * from SYSIBM.SYSTABLES"
+        return "select name, creator, type, dbname, tsname from SYSIBM.SYSTABLES"
 
     def get_sql_list_databases(self):
         raise NotImplemented()

@@ -47,7 +47,7 @@ ON __OPB_MAP_PARMVAR.MAPPING_ID = __OPB_MAPPING.MAPPING_ID AND
             __OPB_MAP_PARMVAR.SUBJECT_ID = __OPB_MAPPING.SUBJECT_ID AND 
             __OPB_MAP_PARMVAR.VERSION_NUMBER = __OPB_MAPPING.VERSION_NUMBER AND
             __OPB_MAP_PARMVAR.PV_FLAG <> 2
-inner JOIN 
+left outer JOIN 
 
 (SELECT * FROM dbo.OPB_MAP_PERSISVAL) AS __OPB_MAP_PERSISVAL
 ON __OPB_MAP_PERSISVAL.SUBJECT_ID = __OPB_MAP_PARMVAR.SUBJECT_ID AND 
@@ -58,7 +58,7 @@ inner join dbo.REP_FLD_DATATYPE fdt on fdt.DTYPE_NUM = __OPB_MAP_PARMVAR.PV_DATA
 
 WHERE (1 = 1)
      and __OPB_TASK_Workflow.TASK_NAME  like '%\_[0-9]%' escape '\'                    
-            and __OPB_MAP_PERSISVAL.RUNINST_NAME = 'NULL'
+     and   coalesce(__OPB_MAP_PERSISVAL.RUNINST_NAME,'NULL') = 'NULL'
       and __OPB_Subject.SUBJ_NAME not like 'z_%'
 --and __OPB_Subject.SUBJ_NAME = 'RAP'
 --and __OPB_Subject.SUBJ_NAME = 'EDW_NZ'

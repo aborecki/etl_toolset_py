@@ -18,7 +18,7 @@ from pyetltools.data.db_tools import db_metadata
 from pyetltools.data.spark import  tools as spark_tools
 
 from pyetltools import logger
-
+from pyetltools.tools.misc import batch
 
 
 class DBConnector(Connector):
@@ -165,11 +165,44 @@ class DBConnector(Connector):
             cond_sql=f" WHERE {where}"
         return self.query(f"SELECT * FROM {table_name} {cond_sql}" )
 
+    def query_multiple(self, queries, reuse_odbc_connection=False, args=[], batch_size=1, continue_on_error=False):
+        """
+            Runs query_pandas. If query does not start with "SELECT" then query will be transformed to "SELECT * FROM {query}"
+        """
+        ret=[]
+        errors=[]
+        i=0
+        for query in batch(queries, batch_size):
+            sql=" UNION ALL ".join(query)
+            try:
+                df=None
+                df=self.query_pandas(sql, reuse_odbc_connection, args=args)
+                i=i+1
+                logger.info("Batches completion progress:"+str(i)+"/"+str(len(queries)/batch_size) +"  batch size:"+str(batch_size) + " "+str(i*batch_size)+"/"+str(len(queries)))
+            except Exception as e:
+                logger.debug("ERROR during execution of query:"+ str(("ERROR", query, e)))
+                if continue_on_error:
+                    if batch_size>1:
+                        df, error=self.query_multiple(query, reuse_odbc_connection=reuse_odbc_connection, args=args, batch_size=1, continue_on_error=True)
+                        errors.extend(error)
+                    else:
+
+                        return (None, [("ERROR", query, e)])
+                else:
+                    raise
+            if df is not None:
+                ret.append(df)
+        if continue_on_error:
+            return (pandas.concat(ret), errors)
+        else:
+            return pandas.concat(ret)
+
+
     def query(self, query, reuse_odbc_connection=False, args=[]):
         """
             Runs query_pandas. If query does not start with "SELECT" then query will be transformed to "SELECT * FROM {query}"
         """
-        if not query.upper().lstrip().startswith("SELECT") and not query.upper().lstrip().startswith("WITH"):
+        if not query.upper().lstrip().startswith("SELECT ") and not query.upper().lstrip().startswith("WITH "):
             query=f"SELECT * FROM {query}"
 
         return self.query_pandas(query, reuse_odbc_connection, args=args)
@@ -208,7 +241,17 @@ class DBConnector(Connector):
         if self.supports_odbc:
              logger.debug(" using ODBC")
              conn = self.get_odbc_connection(reuse_odbc_connection)
-             return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None, params=args)
+             def pd_read_sql(conn):
+                 return pandas.read_sql(query, conn, coerce_float=False, parse_dates=None, params=args)
+             try:
+                return pd_read_sql(conn)
+             except Exception as ex:
+                if self.is_connection_broken_error(ex):
+                    logger.info("Connection is broken, reconnecting.")
+                    conn = self.get_odbc_connection(False)
+                    return pd_read_sql(conn)
+                else:
+                    raise ex
         else:
             if len(args)>0:
                 raise Exception("Query args not supported for spark od jaydebeapi.")
@@ -219,6 +262,10 @@ class DBConnector(Connector):
                 logger.debug("\nUsing jaydebeapi jdbc access method")
                 return self.read_jdbc_to_pd_df(query, self.jdbc_driver, self.get_jdbc_conn_string(),[self.username, self.get_password()])
 
+    def is_connection_broken_error(self, ex):
+        if "Communication link failure" in str(ex):
+            return True
+        return False
 
     def read_jdbc_to_pd_df(self, sql, jclassname, con, driver_args, jars=None, libs=None):
         '''
@@ -459,7 +506,9 @@ DBConnector.get_objects_by_name_regex_cached=db_metadata.get_objects_by_name_reg
 
 DBConnector.get_columns_for_multiple_dbs_cached=db_metadata.get_columns_for_multiple_dbs_cached
 DBConnector.get_columns=db_metadata.get_columns
+DBConnector.get_columns_cached=db_metadata.get_columns_cached
 DBConnector.get_columns_by_object_name_cached=db_metadata.get_columns_by_object_name_cached
+DBConnector.get_columns_by_object_name_cached_multiple_dbs=db_metadata.get_columns_by_object_name_cached_multiple_dbs
 DBConnector.get_columns_by_object_name_regex_cached=db_metadata.get_columns_by_object_name_regex_cached
 
 DBConnector.get_table_counts = db_metadata.get_table_counts

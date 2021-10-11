@@ -24,7 +24,7 @@ class JenkinsConnector(Connector):
         print(suffix)
         return self.url.strip("/")+"/"+suffix.strip("/")
 
-    def build(self, url_suffix, params=None, wait_for_completition=True):
+    def build(self, url_suffix, params=None, wait_for_completition=True, wait_for_build_url=False):
         p=""
         if params is not None:
            p = "?"+"&".join([f"{key}={value}&" for (key, value) in params.items()])
@@ -35,11 +35,13 @@ class JenkinsConnector(Connector):
             url = url.rstrip("/") + "/build"
         print("Running build: "+url)
         response= self.request_post(url)
+        if wait_for_build_url:
+            return self.wait_for_completion(response, wait_for_build_url_only=True)
         if wait_for_completition:
-            return self.wait_for_build_completion(response)
+            return self.wait_for_completion(response)
         return response
 
-    def wait_for_build_completion(self, response):
+    def wait_for_completion(self, response, wait_for_build_url_only=False):
         location = response.headers["Location"]
         url = location + "api/json"
         buildUrl = None
@@ -51,6 +53,8 @@ class JenkinsConnector(Connector):
             time.sleep(5)
         print("")
         print("Build URL:" + buildUrl)
+        if wait_for_build_url_only:
+            return buildUrl
         result = None
         while not result:
             build_status = json.loads(self.request_get(buildUrl).content)
@@ -60,6 +64,12 @@ class JenkinsConnector(Connector):
         print("")
         print(" BUILD RESULT:" + result)
         return result == "SUCCESS", result
+
+    def check_build_status(self, buildUrl):
+        build_status = json.loads(self.request_get(buildUrl).content)
+        result = "N/A" if build_status["result"] is None else build_status["result"]
+        print(" BUILD RESULT:" + result)
+        return result
 
     def request_post(self, url, data=None):
         return requests.post(url, auth=self.get_auth(),  verify=False)

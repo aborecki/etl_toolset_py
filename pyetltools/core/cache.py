@@ -188,7 +188,7 @@ class CachedDecorator(object):
                 del key_kwargs["force_reload_from_source"]
             if "days_in_cache" in kwargs:
                 del key_kwargs["days_in_cache"]
-            key=(str(self.cache_key)+repr((args, key_kwargs)))
+            key=(str(fn.__module__)+str(fn.__name__)+str(self.cache_key)+repr((args, key_kwargs)))
             return self.cache.get_from_cache(key+"_"+get_text_hexdigest(key.encode('utf-8')), retriever=retriever,
                                                               force_reload_from_source=kwargs["force_reload_from_source"] if "force_reload_from_source" in kwargs else self.force_reload_from_source,
                                                               days_in_cache= kwargs["days_in_cache"] if "days_in_cache" in kwargs else  self.days_in_cache)

@@ -21,7 +21,7 @@ def extract_files_history(hg_conn,files_rglob_regex, output_dir, file_filter=lam
     for path in Path(wd).rglob(files_rglob_regex):
         rel_path = path.relative_to(hg_conn.get_working_dir())
         logger.debug(rel_path)
-        with open(path, 'r') as file:
+        with open(path, 'r', encoding="windows-1252") as file:
             file_str = file.read()
         if file_filter(path, file_str):
             log = hg_conn.get_log(str(rel_path))

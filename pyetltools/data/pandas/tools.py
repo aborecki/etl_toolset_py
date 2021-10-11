@@ -60,7 +60,7 @@ def save_dataframes_to_excel(dfs, sheet_names, output_file, show_in_excel=False)
             worksheet.add_table(0, 0, len(df.index), len(df.columns), {'columns': [{'header':'Idx'}] + [  {'header': c } for c in list(df)   ]})
 
     writer.save()
-
+    writer.close()
     if show_in_excel:
         os.system(f"start  {output_file}")
 
@@ -99,12 +99,12 @@ def compare_multiple_data_frames(dfs, keys, names, cols_to_compare):
     return result_df
 
 
-from Levenshtein import distance as levenshtein_distance
+
 from functools import reduce
 
 def compare_data_frames(df_left, df_right, keys, left_name, right_name, cols_to_compare, keys_fuzzy_match=[], keys_fuzzy_match_comparers=None, make_copy=True, merge_validate=None):
     import pandas as pd
-
+    from Levenshtein import distance as levenshtein_distance
     if  keys_fuzzy_match_comparers and len(keys_fuzzy_match != keys_fuzzy_match_comparers):
         raise Exception("keys_fuzzy_match_comparers have to be None to use default fuzzy field comparer or the length of keys_fuzzy_match.")
 
